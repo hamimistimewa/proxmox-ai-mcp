@@ -1,0 +1,142 @@
+#!/bin/sh
+# pmx — talk to your Proxmox AI platform with nothing but curl.
+#
+# No Node, no install, no MCP. Claude Code, Codex and any other agent that can run a shell can use this
+# directly. Every call carries your API key, so the platform applies the same role, IP whitelist and rate
+# limit it applies to everything else.
+#
+#   pmx me                       who this key is, and what it may do
+#   pmx tools                    the tools this key is allowed to call
+#   pmx get /nodes               any allowed GET, path relative to /api/v1
+#   pmx get /guests/101
+#   pmx get /nodes/pve01/usage range=24h
+#   pmx propose guest_power vmid=101 operation=shutdown
+#   pmx actions                  proposals waiting, and recent results
+#   pmx action 42                one action, with its plan and warnings
+#   pmx confirm 42               run a proposal a human has read
+#   pmx cancel 42
+#
+# Configuration, in order of precedence:
+#   PROXMOX_AI_URL / PROXMOX_AI_KEY in the environment
+#   ~/.proxmox-ai/config.json      (written by install.sh or bin/install.mjs)
+set -eu
+
+CONFIG="${PROXMOX_AI_CONFIG:-$HOME/.proxmox-ai/config.json}"
+
+# Pull one string field out of the little config file without needing jq.
+json_field() {
+  sed -n 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$CONFIG" 2>/dev/null | head -n 1
+}
+
+URL="${PROXMOX_AI_URL:-}"
+KEY="${PROXMOX_AI_KEY:-}"
+if [ -z "$URL" ] || [ -z "$KEY" ]; then
+  [ -f "$CONFIG" ] || {
+    echo "pmx: no configuration." >&2
+    echo "  Set PROXMOX_AI_URL and PROXMOX_AI_KEY, or run: ./install.sh --url https://proxmox.ai.id --key pak_..." >&2
+    exit 2
+  }
+  [ -n "$URL" ] || URL="$(json_field url)"
+  [ -n "$KEY" ] || KEY="$(json_field key)"
+fi
+[ -n "$URL" ] && [ -n "$KEY" ] || { echo "pmx: platform URL or API key is missing from $CONFIG" >&2; exit 2; }
+
+# Accept the site root or the API base; normalise to the API base.
+BASE="$(printf '%s' "$URL" | sed -e 's#/*$##' -e 's#/api/v1$##')/api/v1"
+
+# Pretty-print when jq or python is around, otherwise hand back the raw JSON.
+pretty() {
+  if command -v jq >/dev/null 2>&1; then jq .
+  elif command -v python3 >/dev/null 2>&1; then python3 -m json.tool
+  else cat
+  fi
+}
+
+# The key never appears in the process list: curl reads the header from stdin.
+# On an HTTP error the platform still answers with JSON ({"error": "..."}), and that body is what is useful,
+# so curl's own message is kept off stdout and the status is reported separately.
+api() {
+  _method="$1"; _path="$2"; shift 2
+  _url="$BASE$_path"
+  _body=""
+  if [ "$_method" != "GET" ] && [ $# -gt 0 ]; then _body="$1"; fi
+  _rc=0
+  if [ "$_method" = "GET" ]; then
+    _out="$(printf 'authorization: Bearer %s\n' "$KEY" \
+      | curl -sS --fail-with-body -H @- -H 'accept: application/json' "$_url" 2>/dev/null)" || _rc=$?
+  else
+    _out="$(printf 'authorization: Bearer %s\n' "$KEY" \
+      | curl -sS --fail-with-body -X "$_method" -H @- \
+        -H 'accept: application/json' -H 'content-type: application/json' \
+        ${_body:+--data "$_body"} "$_url" 2>/dev/null)" || _rc=$?
+  fi
+  if [ -n "$_out" ]; then
+    printf '%s' "$_out"
+  elif [ "$_rc" -ne 0 ]; then
+    printf '{"error":"could not reach %s (curl exit %s)"}' "$_url" "$_rc"
+  fi
+  # 22 is "HTTP error, body returned" — the body is the answer, so that is not a failure of this script
+  [ "$_rc" -eq 0 ] || [ "$_rc" -eq 22 ] || return "$_rc"
+}
+
+# key=value pairs become a query string (GET) or a JSON object (POST/PUT).
+# A bare number stays a number so the API does not have to coerce it.
+to_query() {
+  _q=""
+  for _kv in "$@"; do
+    _k="${_kv%%=*}"; _v="${_kv#*=}"
+    _v="$(printf '%s' "$_v" | sed -e 's/%/%25/g' -e 's/ /%20/g' -e 's/&/%26/g' -e 's/+/%2B/g' -e 's/#/%23/g')"
+    _q="${_q:+$_q&}$_k=$_v"
+  done
+  printf '%s' "$_q"
+}
+to_json() {
+  _j=""
+  for _kv in "$@"; do
+    _k="${_kv%%=*}"; _v="${_kv#*=}"
+    case "$_v" in
+      ''|*[!0-9]*) _v="\"$(printf '%s' "$_v" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')\"" ;;
+      *) : ;;   # plain integer, leave unquoted
+    esac
+    _j="${_j:+$_j,}\"$_k\":$_v"
+  done
+  printf '{%s}' "$_j"
+}
+
+usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; }
+
+cmd="${1:-help}"
+[ $# -gt 0 ] && shift || true
+
+case "$cmd" in
+  me)      api GET /me | pretty ;;
+  tools)
+    # The manifest is the authoritative list of what this key may call.
+    _m="$(api GET /mcp/manifest)"
+    if command -v jq >/dev/null 2>&1; then
+      printf '%s' "$_m" | jq -r '"scope: \(.scope)  role: \(.role // "platform")  org: \(.organization.name // "-")\n",
+        (.tools[] | "  \(.name)\t\(.method) \(.path)")'
+    else
+      printf '%s' "$_m" | pretty
+    fi ;;
+  get)
+    _p="${1:?pmx get <path> [key=value ...]}"; shift || true
+    _qs=""; [ $# -gt 0 ] && _qs="?$(to_query "$@")"
+    api GET "$_p$_qs" | pretty ;;
+  post)
+    _p="${1:?pmx post <path> [key=value ...]}"; shift || true
+    api POST "$_p" "$(to_json "$@")" | pretty ;;
+  actions) api GET /actions | pretty ;;
+  action)  api GET "/actions/${1:?pmx action <id>}" | pretty ;;
+  propose)
+    _a="${1:?pmx propose <action> [key=value ...]}"; shift || true
+    api POST /actions "{\"action\":\"$_a\",\"params\":$(to_json "$@")}" | pretty ;;
+  confirm)
+    _id="${1:?pmx confirm <id> [typed-confirmation]}"; shift || true
+    _b='{}'; [ $# -gt 0 ] && _b="$(to_json "typed_confirmation=$*")"
+    api POST "/actions/$_id/confirm" "$_b" | pretty ;;
+  cancel)  api POST "/actions/${1:?pmx cancel <id>}/cancel" '{}' | pretty ;;
+  raw)     api "${1:?pmx raw <METHOD> <path> [json]}" "${2:?}" "${3:-}" ;;
+  help|-h|--help) usage ;;
+  *) echo "pmx: unknown command '$cmd'" >&2; usage >&2; exit 2 ;;
+esac
