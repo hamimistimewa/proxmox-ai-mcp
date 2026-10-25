@@ -14,6 +14,10 @@ Two ways in. Both are thin clients; the role check, the validation and the guard
 
 ---
 
+![Install, ask for a health check, propose a VM, confirm it](docs/demo.gif)
+
+*Install, ask for a health check, ask for a VM in plain language. The change stops at a plan until you confirm it.*
+
 ## A · Shell + curl (no Node)
 
 ```sh
