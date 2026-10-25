@@ -1,199 +1,135 @@
 #!/usr/bin/env node
-// proxmox-ai-mcp — an MCP server that gives your local AI client real Proxmox tools.
+// proxmox-ai-mcp — an MCP server that gives your AI client real Proxmox tools.
 //
-// It holds no tool list of its own. At start-up it asks the Proxmox AI platform which tools THIS API key is
-// allowed to use (GET /mcp/manifest) and exposes exactly those. A readonly key is therefore never even shown
-// the tools that write, so the model cannot try. Add an endpoint on the platform and every installed copy of
-// this server picks it up on the next restart — no update to this repo.
+// It holds no tool list of its own. At start-up it asks the Proxmox AI platform which tools THIS API key
+// is allowed to use and exposes exactly those, so a readonly key is never even shown the tools that write.
 //
-// Zero dependencies on purpose: `git clone` and run. The whole protocol is below, so you can read it.
+//   stdio (default, for Claude Code, Claude Desktop, Codex, Cursor):
+//     proxmox-ai-mcp
+//   streamable HTTP (one server, several clients, key per request):
+//     proxmox-ai-mcp --transport http --port 8080
+//
+// Zero dependencies on purpose: the whole protocol is in lib/, so you can read it.
 import { createInterface } from 'node:readline';
-import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { createServer } from 'node:http';
+import { loadConfig, fetchManifest, ApiError } from '../lib/client.mjs';
+import { createSession, handle } from '../lib/protocol.mjs';
 
-const VERSION = '1.0.0';
-const DEFAULT_PROTOCOL = '2025-06-18';
-const SUPPORTED_PROTOCOLS = new Set(['2024-11-05', '2025-03-26', '2025-06-18']);
+// stdout is the JSON-RPC channel on stdio and nothing else may be written there.
+const log = (...a) => console.error('[proxmox-ai-mcp]', ...a);
 
-// stdout is the JSON-RPC channel and nothing else may ever be written there
-const log = (...args) => console.error('[proxmox-ai-mcp]', ...args);
+const rpcError = (id, code, message) => ({ jsonrpc: '2.0', id, error: { code, message } });
+const rpcOk = (id, result) => ({ jsonrpc: '2.0', id, result });
+const codeFor = (err) => (err instanceof ApiError && err.status === 404 ? -32601 : -32603);
 
-// ---------------------------------------------------------------- configuration
-export function loadConfig(argv = []) {
-  const flags = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const m = /^--([a-z-]+)(?:=(.*))?$/.exec(argv[i]);
-    if (m) flags[m[1]] = m[2] ?? argv[++i];
-  }
-  let file = {};
-  const path = process.env.PROXMOX_AI_CONFIG || join(homedir(), '.proxmox-ai', 'config.json');
-  try { file = JSON.parse(readFileSync(path, 'utf8')); } catch { /* no config file is fine */ }
-
-  const url = flags.url || process.env.PROXMOX_AI_URL || file.url;
-  const key = flags.key || process.env.PROXMOX_AI_KEY || file.key;
-  if (!url || !key) {
-    throw new Error(
-      'Missing platform URL or API key.\n'
-      + `  Looked in: --url/--key, PROXMOX_AI_URL/PROXMOX_AI_KEY, and ${path}\n`
-      + '  Create a key in the dashboard under Organization → API keys, then run:\n'
-      + '    node bin/install.mjs --url https://proxmox.ai.id --key pak_…',
-    );
-  }
-  // Accept either the site root or the API base; normalise to the API base.
-  const base = url.replace(/\/+$/, '').replace(/\/api\/v1$/, '');
-  return { base: `${base}/api/v1`, key, timeoutMs: Number(flags.timeout || file.timeout || 30000) };
-}
-
-// ---------------------------------------------------------------- platform calls
-async function call(cfg, method, path, { query, body } = {}) {
-  const url = new URL(cfg.base + path);
-  for (const [k, v] of Object.entries(query ?? {})) {
-    if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), cfg.timeoutMs);
+async function respond(message, ctx) {
+  const { id, method } = message;
+  if (id === undefined) return null;            // a notification expects no answer
   try {
-    const res = await fetch(url, {
-      method,
-      headers: {
-        authorization: `Bearer ${cfg.key}`,
-        accept: 'application/json',
-        ...(body ? { 'content-type': 'application/json' } : {}),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    });
-    const text = await res.text();
-    let data;
-    try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
-    if (!res.ok) {
-      const message = data?.error ?? `HTTP ${res.status}`;
-      const err = new Error(message);
-      err.status = res.status;
-      err.retryAfter = res.headers.get('retry-after');
-      throw err;
-    }
-    return data;
+    return rpcOk(id, await handle(message, ctx));
   } catch (err) {
-    if (err.name === 'AbortError') throw new Error(`The platform did not answer within ${cfg.timeoutMs} ms`);
-    throw err;
-  } finally {
-    clearTimeout(timer);
+    return rpcError(id, codeFor(err), err.message || `Failed to handle ${method}`);
   }
 }
 
-export async function fetchManifest(cfg) {
-  const manifest = await call(cfg, 'GET', '/mcp/manifest');
-  if (!Array.isArray(manifest?.tools)) throw new Error('The platform did not return a tool manifest — is the URL right, and is the platform up to date?');
-  return manifest;
-}
-
-// Path params come out of the arguments; whatever is left is a query string for GET, a JSON body otherwise.
-function splitArguments(tool, args) {
-  const rest = { ...args };
-  const path = tool.path.replace(/\{([^}]+)\}/g, (_, name) => {
-    const value = rest[name];
-    delete rest[name];
-    if (value === undefined || value === null || value === '') throw new Error(`Missing required parameter "${name}"`);
-    return encodeURIComponent(String(value));
-  });
-  return tool.method === 'GET' ? { path, query: rest } : { path, body: rest };
-}
-
-// ---------------------------------------------------------------- JSON-RPC plumbing
-const send = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
-const result = (id, value) => send({ jsonrpc: '2.0', id, result: value });
-const failure = (id, code, message) => send({ jsonrpc: '2.0', id, error: { code, message } });
-const textResult = (id, text, isError = false) => result(id, { content: [{ type: 'text', text }], isError });
-
-async function main() {
-  const cfg = loadConfig(process.argv.slice(2));
-  let manifest = null;
-  let tools = new Map();
-
-  async function refresh() {
-    manifest = await fetchManifest(cfg);
-    tools = new Map(manifest.tools.map((t) => [t.name, t]));
-    const who = manifest.organization ? `${manifest.organization.name} (${manifest.role})` : 'platform scope';
-    log(`connected to ${cfg.base} as ${who} — ${tools.size} tools`);
-  }
-
-  // Fail loudly here rather than serving an empty tool list that looks like a broken platform.
+// ---------------------------------------------------------------- stdio
+async function serveStdio(cfg) {
+  let session;
+  const load = async () => { session = createSession(await fetchManifest(cfg)); return session; };
   try {
-    await refresh();
+    await load();
   } catch (err) {
     log(`could not load the tool manifest: ${err.message}`);
     process.exitCode = 1;
     return;
   }
+  const who = session.manifest.organization ? `${session.manifest.organization.name} (${session.manifest.role})` : 'platform scope';
+  log(`connected to ${cfg.base} as ${who} — ${session.tools.size} tools, ${session.prompts.length} prompts, ${session.resources.length} resources`);
 
-  const instructions = [
-    manifest.guardrail,
-    manifest.organization
-      ? `You are acting inside the organization "${manifest.organization.name}" with the role ${manifest.role}. Tools you cannot see are tools this key may not use — do not try to work around them.`
-      : 'This key has platform scope: it administers organizations, not the guests inside them.',
-  ].join('\n\n');
-
-  const rl = createInterface({ input: process.stdin });
-  for await (const line of rl) {
+  const send = (m) => process.stdout.write(`${JSON.stringify(m)}\n`);
+  for await (const line of createInterface({ input: process.stdin })) {
     const raw = line.trim();
     if (!raw) continue;
     let message;
     try { message = JSON.parse(raw); } catch { continue; }
-    const { id, method, params } = message;
-    // Notifications carry no id and expect no answer
-    if (id === undefined) continue;
-
-    try {
-      if (method === 'initialize') {
-        const wanted = params?.protocolVersion;
-        result(id, {
-          protocolVersion: SUPPORTED_PROTOCOLS.has(wanted) ? wanted : DEFAULT_PROTOCOL,
-          capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: 'proxmox-ai-mcp', version: VERSION },
-          instructions,
-        });
-      } else if (method === 'ping') {
-        result(id, {});
-      } else if (method === 'tools/list') {
-        result(id, {
-          tools: manifest.tools.map((t) => ({
-            name: t.name,
-            description: t.writes
-              ? `${t.description}\n\n(This tool changes state. Only call it when the person has explicitly asked for it.)`
-              : t.description,
-            inputSchema: t.input_schema,
-          })),
-        });
-      } else if (method === 'tools/call') {
-        const tool = tools.get(params?.name);
-        if (!tool) {
-          textResult(id, `No tool named "${params?.name}" is available to this API key.`, true);
-          continue;
-        }
-        try {
-          const { path, query, body } = splitArguments(tool, params?.arguments ?? {});
-          const data = await call(cfg, tool.method, path, { query, body });
-          textResult(id, JSON.stringify(data, null, 2));
-        } catch (err) {
-          const hint = err.status === 403
-            ? '\n\nThis key is not allowed to do that. Do not retry with different parameters.'
-            : err.status === 429
-              ? `\n\nRate limited${err.retryAfter ? `; retry after ${err.retryAfter}s` : ''}.`
-              : '';
-          textResult(id, `${err.message}${hint}`, true);
-        }
-      } else {
-        failure(id, -32601, `Unknown method: ${method}`);
-      }
-    } catch (err) {
-      failure(id, -32603, err.message);
-    }
+    const out = await respond(message, { cfg, session, refresh: load });
+    if (out) send(out);
   }
 }
 
-// Only run when executed directly, so install.mjs can import loadConfig/fetchManifest.
+// ---------------------------------------------------------------- streamable HTTP
+// POST /mcp carries one JSON-RPC message and gets one JSON response. The Authorization header
+// overrides the configured key, so one server can serve several people with their own keys and
+// each of them still sees only the tools their own key allows.
+function serveHttp(cfg) {
+  const sessions = new Map();          // key -> session, so the manifest is fetched once per key
+
+  const sessionFor = async (reqCfg) => {
+    const cached = sessions.get(reqCfg.key);
+    if (cached) return cached;
+    const session = createSession(await fetchManifest(reqCfg));
+    sessions.set(reqCfg.key, session);
+    return session;
+  };
+
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
+    const json = (status, body) => {
+      const payload = JSON.stringify(body);
+      res.writeHead(status, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) });
+      res.end(payload);
+    };
+
+    if (url.pathname === '/health') return json(200, { ok: true, server: 'proxmox-ai-mcp', version: 'http' });
+    if (url.pathname !== '/mcp') return json(404, { error: 'Not found. The MCP endpoint is POST /mcp.' });
+    if (req.method === 'GET') {
+      // No server-initiated stream: every answer is returned on the POST that asked for it.
+      res.writeHead(405, { allow: 'POST', 'content-type': 'application/json' });
+      return res.end('{"error":"This server answers on POST /mcp; it opens no SSE stream."}');
+    }
+    if (req.method !== 'POST') return json(405, { error: 'Use POST /mcp' });
+
+    const bearer = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '')?.[1];
+    const key = bearer || req.headers['x-proxmox-ai-key'] || cfg.key;
+    if (!key) return json(401, { error: 'Send the API key as "Authorization: Bearer pak_…"' });
+
+    let body = '';
+    for await (const chunk of req) {
+      body += chunk;
+      if (body.length > 1_000_000) return json(413, { error: 'Request too large' });
+    }
+    let message;
+    try { message = JSON.parse(body); } catch { return json(400, rpcError(null, -32700, 'Invalid JSON')); }
+
+    const reqCfg = { ...cfg, key };
+    try {
+      const session = await sessionFor(reqCfg);
+      const out = await respond(message, { cfg: reqCfg, session, refresh: async () => {
+        sessions.delete(key);
+        return sessionFor(reqCfg);
+      } });
+      // A notification gets 202 with no body, as the spec expects.
+      if (!out) { res.writeHead(202); return res.end(); }
+      return json(200, out);
+    } catch (err) {
+      sessions.delete(key);
+      return json(err instanceof ApiError && err.status === 401 ? 401 : 500, rpcError(message?.id ?? null, -32603, err.message));
+    }
+  });
+
+  server.listen(cfg.port, cfg.host, () => {
+    log(`listening on http://${cfg.host}:${cfg.port}/mcp`);
+    log(cfg.key ? 'a default key is configured; Authorization: Bearer overrides it per request' : 'no default key: every request must carry Authorization: Bearer pak_…');
+  });
+}
+
+async function main() {
+  const cfg = loadConfig(process.argv.slice(2));
+  if (cfg.transport === 'http' || cfg.transport === 'streamable-http') return serveHttp(cfg);
+  if (cfg.transport !== 'stdio') throw new Error(`Unknown transport "${cfg.transport}". Use stdio or http.`);
+  return serveStdio(cfg);
+}
+
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
   main().catch((err) => { log(err.message); process.exit(1); });
 }

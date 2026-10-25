@@ -10,7 +10,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, cpSync, chmodSync }
 import { homedir, platform } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, fetchManifest } from './proxmox-ai-mcp.mjs';
+import { loadConfig, fetchManifest } from '../lib/client.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = resolve(HERE, 'proxmox-ai-mcp.mjs');

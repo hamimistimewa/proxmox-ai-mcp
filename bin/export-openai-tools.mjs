@@ -7,7 +7,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, fetchManifest } from './proxmox-ai-mcp.mjs';
+import { loadConfig, fetchManifest } from '../lib/client.mjs';
 
 const out = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'schemas', 'openai-tools.json');
 const cfg = loadConfig(process.argv.slice(2));

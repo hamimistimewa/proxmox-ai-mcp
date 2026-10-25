@@ -93,6 +93,57 @@ tool is simply absent. IP whitelist, rate limit and expiry are still enforced by
 It also means the tools stay current: add an endpoint on the platform and every installed copy picks it up on
 its next run. You do not pull this repository again.
 
+## Guided workflows, not just tools
+
+The server also publishes **prompts** — ops workflows that already know which tools to call, in what order,
+and what to report. In Claude Code they appear as slash commands.
+
+| Prompt | What it does |
+| --- | --- |
+| `health-check` | Walks the fleet: node pressure, failed tasks, guests with no recent backup |
+| `capacity-review` | Headroom per node, which resource runs out first, and roughly when |
+| `backup-audit` | Unprotected guests, failing jobs, datastores a node cannot reach |
+| `exposure-review` | What the vRouter exposes to the internet, and whether it should |
+| `triage` | Starts from a symptom and narrows it with live data instead of guessing |
+| `plan-vm` | Picks node and template from real options, then leaves a proposal to confirm |
+| `explain-action` | Reads a pending proposal and explains what it changes and what is hard to undo |
+
+```console
+> /mcp__proxmox-ai__health-check
+> /mcp__proxmox-ai__triage symptom="web-01 is slow since this morning"
+```
+
+Prompts follow the key too: `plan-vm` needs `propose_action`, so a readonly key is offered six prompts,
+an operator seven. None of them confirms anything — every one ends by telling the model to stop at a plan.
+
+**Resources** expose the same data as context the client can pull in without spending a tool call:
+`proxmox://me`, `proxmox://nodes`, `proxmox://guests`, `proxmox://storage`, `proxmox://actions`,
+`proxmox://backups`.
+
+## One server for several people
+
+```sh
+proxmox-ai-mcp --transport http --port 8080
+```
+
+Serves streamable HTTP on `POST /mcp` and a readiness check on `GET /health`. Each request carries its own
+key, so one server can serve a whole team and each person still sees only the tools their key allows:
+
+```sh
+curl -sS -X POST http://localhost:8080/mcp \
+  -H "Authorization: Bearer pak_…" -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+It opens no SSE stream: every answer comes back on the POST that asked for it. Point a client at it with
+`npx mcp-remote http://host:8080/mcp`, or run it from the image:
+
+```sh
+docker build -t proxmox-ai-mcp .
+docker run --rm -p 8080:8080 -e PROXMOX_AI_TRANSPORT=http \
+  -e PROXMOX_AI_URL=https://proxmox.ai.id proxmox-ai-mcp
+```
+
 ## Changes always stop for a human
 
 ```
@@ -151,6 +202,7 @@ cannot execute them.
 | `This needs the Operator role or higher` | the key's role is too low — issue a new key, do not retry |
 | `did not return a tool manifest` | the URL does not point at a Proxmox AI platform |
 | `pmx: no configuration` | run `./install.sh`, or set `PROXMOX_AI_URL` and `PROXMOX_AI_KEY` |
+| `Send the API key as "Authorization: Bearer …"` | HTTP transport with no key on the request and none configured |
 | no tools in the client | restart it; MCP config is read at start-up |
 
 Re-running either installer is safe and verifies the key before touching anything.
