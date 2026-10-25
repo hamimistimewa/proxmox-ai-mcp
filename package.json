@@ -1,0 +1,30 @@
+{
+  "name": "proxmox-ai-mcp",
+  "version": "1.0.0",
+  "description": "MCP server that gives Claude Code, Codex, Claude Desktop and Cursor real Proxmox VE tools, filtered by your API key's role.",
+  "author": "Nur Hamim",
+  "type": "module",
+  "bin": {
+    "proxmox-ai-mcp": "bin/proxmox-ai-mcp.mjs"
+  },
+  "scripts": {
+    "install-clients": "node bin/install.mjs",
+    "export-openai": "node bin/export-openai-tools.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hamimistimewa/proxmox-ai-mcp.git"
+  },
+  "keywords": [
+    "mcp",
+    "proxmox",
+    "claude",
+    "codex",
+    "ai",
+    "infrastructure"
+  ]
+}
