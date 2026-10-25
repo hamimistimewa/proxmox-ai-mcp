@@ -81,10 +81,10 @@ scope: organization  role: operator  org: Acme
   list_nodes       GET  /nodes
   propose_action   POST /actions
   confirm_action   POST /actions/{id}/confirm
-  …31 tools
+  …53 tools
 
 $ pmx tools        # readonly key
-  …28 tools, and propose_action is not among them
+  …48 tools, and propose_action is not among them
 ```
 
 A readonly key is never *told* that `propose_action` exists, so the model cannot try it and be refused — the

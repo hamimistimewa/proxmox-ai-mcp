@@ -110,7 +110,8 @@ never mint keys), the guest console ticket, and the live dashboard stream.
 - A key is shown once.
 - `GET /api/v1/me` reports exactly what a key is.
 - `GET /api/v1/mcp/manifest` reports exactly which tools that key may call — which is what this repository
-  reads at start-up, and why a readonly key never sees a tool that writes.
+  reads at start-up, and why a readonly key never sees a tool that writes. A readonly organization key is
+  answered with 48 tools, an operator 53, a superadmin 65, and a platform key 24.
 - OpenAPI document at `/api/v1/openapi.json`; the human-readable reference is network-restricted.
 
 Changing infrastructure over the API is the same two steps as everywhere else:
