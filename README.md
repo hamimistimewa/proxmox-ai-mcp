@@ -222,11 +222,13 @@ cannot execute them.
 | `cannot be used from …` | your current IP is not on the key's whitelist |
 | `This needs the Operator role or higher` | the key's role is too low — issue a new key, do not retry |
 | `did not return a tool manifest` | the URL does not point at a Proxmox AI platform |
-| `pmx: no configuration` | run `./install.sh`, or set `PROXMOX_AI_URL` and `PROXMOX_AI_KEY` |
+| `pmx: no configuration` | re-run the installer, or set `PROXMOX_AI_URL` and `PROXMOX_AI_KEY` |
+| `mcp.sh: --key is required` | the one-liner needs `sh -s --` before the flags, or they reach `sh` instead of the script |
 | `Send the API key as "Authorization: Bearer …"` | HTTP transport with no key on the request and none configured |
 | no tools in the client | restart it; MCP config is read at start-up |
 
-Re-running either installer is safe and verifies the key before touching anything.
+Re-running any of the three installers is safe: each verifies the key against the platform before it
+writes anything, and a second run only rotates what changed.
 
 ## Licence
 
