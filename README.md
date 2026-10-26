@@ -5,18 +5,35 @@ infrastructure, through the [Proxmox AI](https://proxmox.ai.id) platform.
 
 > What is the platform? → **[PLATFORM.md](PLATFORM.md)**
 
-Two ways in. Both are thin clients; the role check, the validation and the guardrail live on the platform.
+## Quick start
+
+```sh
+curl -fsSL https://proxmox.ai.id/mcp.sh | sh -s -- --key pak_xxxxxxxxxxxx_…
+```
+
+It fetches this repo into `~/.proxmox-ai/src`, checks the key against the platform before writing
+anything, and then sets up whichever path your machine can run: with Node it registers a real MCP
+server with every AI client it finds; without Node it installs the `pmx` command instead. Add
+`--url` if you self-host, and `--curl-only` to skip the MCP server.
+
+![Install, check the connection, ask a question, propose a VM, confirm it](docs/setup.gif)
+
+*One command, then `claude mcp list` to confirm. Asking for a VM gets you a plan and a warning — and
+it stops there, at `proposed`, until a human confirms it.*
+
+---
+
+Prefer to do it by hand? Two ways in. Both are thin clients; the role check, the validation and the
+guardrail live on the platform.
 
 | | Needs | Good for |
 | --- | --- | --- |
 | **A · Shell + curl** | `curl` only | anything that can run a shell: Claude Code, Codex, a terminal. Nothing to install. |
 | **B · MCP server** | Node 20+ | first-class tools in the client's tool list — Claude Desktop, Cursor, Windsurf |
 
----
+![Ask for a health check, propose a VM, confirm it](docs/demo.gif)
 
-![Install, ask for a health check, propose a VM, confirm it](docs/demo.gif)
-
-*Install, ask for a health check, ask for a VM in plain language. The change stops at a plan until you confirm it.*
+*Ask for a health check, then ask for a VM in plain language. The change stops at a plan until you confirm it.*
 
 ## A · Shell + curl (no Node)
 
