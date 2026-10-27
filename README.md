@@ -18,6 +18,28 @@ server with every AI client it finds; without Node it installs the `pmx` command
 
 ![Install, check the connection, ask a question, propose a VM, confirm it](docs/setup.gif)
 
+### In Claude Code
+
+This repo is also a Claude Code plugin, which adds the `/pmx-ai` command on top of the MCP server:
+
+```
+/plugin install proxmox-ai --marketplace hamimistimewa/proxmox-ai-mcp
+```
+
+Then run the installer above once so the plugin has a key to use, and ask for whatever you need in
+plain language:
+
+```
+/pmx-ai which node has the least headroom right now
+/pmx-ai create an ubuntu 24.04 VM on the quietest node
+/pmx-ai generate this week's report
+/pmx-ai why is VM 101 slow
+```
+
+The model answers in whatever language you ask in — `/pmx-ai berapa RAM yang kepakai di node lab`
+works the same way. Anything that changes infrastructure comes back as a plan with its warnings, and
+waits for you to confirm it; nothing runs before that.
+
 *One command, then `claude mcp list` to confirm. Asking for a VM gets you a plan and a warning — and
 it stops there, at `proposed`, until a human confirms it.*
 

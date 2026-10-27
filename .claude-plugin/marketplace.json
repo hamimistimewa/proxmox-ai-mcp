@@ -1,0 +1,21 @@
+{
+  "name": "proxmox-ai",
+  "owner": {
+    "name": "Nur Hamim",
+    "email": "hamimistimewa@gmail.com",
+    "url": "https://proxmox.ai.id"
+  },
+  "metadata": {
+    "description": "Proxmox VE from your AI client, with a human confirmation in front of every change.",
+    "version": "1.2.0"
+  },
+  "plugins": [
+    {
+      "name": "proxmox-ai",
+      "source": "./",
+      "description": "Run Proxmox VE from Claude Code. Inspect nodes, VMs, storage, backups and vRouters, build templates, and propose changes that stop at a human confirmation before anything runs.",
+      "category": "infrastructure",
+      "keywords": ["proxmox", "virtualization", "infrastructure", "homelab", "devops", "vm", "backup"]
+    }
+  ]
+}

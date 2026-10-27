@@ -7,7 +7,8 @@
 // owner-only permissions, and then registers this server with each client it actually finds. The client config
 // files only ever get a path — the key never goes into them, so dotfiles stay safe to commit and share.
 import { mkdirSync, readFileSync, writeFileSync, existsSync, cpSync, chmodSync } from 'node:fs';
-import { homedir, platform } from 'node:os';
+import { homedir, platform, hostname, userInfo } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, fetchManifest } from '../lib/client.mjs';
@@ -111,6 +112,16 @@ async function main() {
     return;
   }
 
+  // A key pinned to machines needs this id on the very first request, because that request is what
+  // enrols the machine. Reuse the one already on disk so re-running the installer does not look like
+  // a second machine and land in the approval queue.
+  if (!cfg.device) {
+    let existing = {};
+    try { existing = JSON.parse(readFileSync(CONFIG_FILE, 'utf8')); } catch { /* first run */ }
+    cfg.device = existing.device || randomUUID().replace(/-/g, '');
+    cfg.deviceName = cfg.deviceName || existing.device_name || `${userInfo().username}@${hostname()}`;
+  }
+
   // Check the key before writing anything, so a typo fails here instead of inside an AI client.
   console.log(`\nChecking ${cfg.base} …`);
   let manifest;
@@ -118,7 +129,13 @@ async function main() {
     manifest = await fetchManifest(cfg);
   } catch (err) {
     console.error(`  \x1b[31m✗\x1b[0m ${err.message}\n`);
-    console.error('  Nothing was changed. Check the URL, the key, and that your current IP is on the key\'s whitelist.\n');
+    if (/approve|pinned to specific machines|waiting to be approved/i.test(err.message)) {
+      console.error(`  Nothing was changed. This machine is "${cfg.deviceName}" — approve it in the dashboard`);
+      console.error('  under API keys → Pinned machines, then run this installer again.\n');
+    } else {
+      console.error('  Nothing was changed. Check the URL and the key; if the key is limited to fixed');
+      console.error('  addresses, check that this machine\'s IP is on its whitelist.\n');
+    }
     process.exitCode = 1;
     return;
   }
@@ -126,7 +143,12 @@ async function main() {
   ok(`key accepted — ${who}, ${manifest.tools.length} tools`);
 
   mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(CONFIG_FILE, `${JSON.stringify({ url: cfg.base.replace(/\/api\/v1$/, ''), key: cfg.key }, null, 2)}\n`, { mode: 0o600 });
+  writeFileSync(CONFIG_FILE, `${JSON.stringify({
+    url: cfg.base.replace(/\/api\/v1$/, ''),
+    key: cfg.key,
+    device: cfg.device,
+    device_name: cfg.deviceName,
+  }, null, 2)}\n`, { mode: 0o600 });
   try { chmodSync(CONFIG_FILE, 0o600); } catch { /* Windows has no mode bits */ }
   ok(`credentials saved — ${CONFIG_FILE} (owner only)`);
 

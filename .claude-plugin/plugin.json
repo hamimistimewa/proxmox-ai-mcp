@@ -1,0 +1,14 @@
+{
+  "name": "proxmox-ai",
+  "version": "1.2.0",
+  "description": "Run Proxmox VE from Claude Code. Inspect nodes, VMs, storage, backups and vRouters, build templates, and propose changes that stop at a human confirmation before anything runs.",
+  "author": {
+    "name": "Nur Hamim",
+    "email": "hamimistimewa@gmail.com",
+    "url": "https://proxmox.ai.id"
+  },
+  "homepage": "https://proxmox.ai.id",
+  "repository": "https://github.com/hamimistimewa/proxmox-ai-mcp",
+  "license": "MIT",
+  "keywords": ["proxmox", "virtualization", "infrastructure", "homelab", "devops", "mcp", "vm", "backup"]
+}
