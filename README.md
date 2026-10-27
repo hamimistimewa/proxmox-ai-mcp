@@ -26,8 +26,12 @@ This repo is also a Claude Code plugin, which adds the `/pmx-ai` command on top 
 /plugin install proxmox-ai --marketplace hamimistimewa/proxmox-ai-mcp
 ```
 
-Then run the installer above once so the plugin has a key to use, and ask for whatever you need in
-plain language:
+Claude Code asks for your API key when you enable it and keeps it in the platform's secure
+credential store — the key is never written into a config file, and the plugin never reads a
+credential that was already in your environment. Issue the key in your dashboard under **API keys**;
+its role decides which tools appear.
+
+Then ask for whatever you need in plain language:
 
 ```
 /pmx-ai which node has the least headroom right now
@@ -71,7 +75,7 @@ agent — it has a shell, and now it has `pmx`:
 
 > node mana yang RAM-nya paling mepet?
 
-`pmx` is one POSIX shell script with no dependency beyond `curl`. Read it: `bin/pmx`.
+`pmx` is one POSIX shell script with no dependency beyond `curl`. Read it: `server/pmx`.
 
 ```sh
 pmx me                                  # who this key is, which role, which organization
@@ -97,12 +101,12 @@ curl -sS -H "Authorization: Bearer pak_…" https://proxmox.ai.id/api/v1/nodes
 ## B · MCP server (Node 20+)
 
 ```sh
-node bin/install.mjs --url https://proxmox.ai.id --key pak_xxxxxxxxxxxx_…
+node server/install.mjs --url https://proxmox.ai.id --key pak_xxxxxxxxxxxx_…
 ```
 
 Same checks, then it registers this server with every AI client it finds and installs the skill. Restart the
 client and the Proxmox tools are in its tool list. No dependencies, nothing to build — the whole JSON-RPC
-protocol is written out in `bin/proxmox-ai-mcp.mjs` so you can read it in one sitting.
+protocol is written out in `server/proxmox-ai-mcp.mjs` so you can read it in one sitting.
 
 ---
 
@@ -210,7 +214,7 @@ The bundled skill is what teaches the model that discipline — tool description
 | File | Contents |
 | --- | --- |
 | `~/.proxmox-ai/config.json` | your platform URL and API key, mode `600` |
-| `~/.local/bin/pmx` | symlink to `bin/pmx` (shell path) |
+| `~/.local/bin/pmx` | symlink to `server/pmx` (shell path) |
 | `~/.claude/skills/proxmox-ai/`, `~/.codex/skills/proxmox-ai/` | the skill |
 | `~/.claude.json` | Claude Code: a path to the MCP server |
 | `~/Library/Application Support/Claude/claude_desktop_config.json` | Claude Desktop (`~/.config/Claude/` on Linux, `%APPDATA%` on Windows) |
@@ -223,7 +227,7 @@ commit. Clients that are not installed are skipped; existing entries are merged,
 ## Using it from the OpenAI API instead
 
 ```sh
-node bin/export-openai-tools.mjs --url https://proxmox.ai.id --key pak_…   # → schemas/openai-tools.json
+node server/export-openai-tools.mjs --url https://proxmox.ai.id --key pak_…   # → schemas/openai-tools.json
 pip install openai && python examples/openai_client.py "ringkas kondisi infrastruktur saya"
 ```
 
@@ -255,3 +259,11 @@ writes anything, and a second run only rotates what changed.
 ## Licence
 
 MIT · by **Nur Hamim** · [nurhamim.com](https://nurhamim.com)
+
+## About the name
+
+Proxmox® is a trademark of Proxmox Server Solutions GmbH. This is an independent, community-built
+client for Proxmox VE and is **not affiliated with, endorsed by, or sponsored by** Proxmox Server
+Solutions GmbH. It talks to a Proxmox VE installation through the Proxmox AI platform's own API.
+
+Licensed MIT — see [LICENSE](LICENSE).

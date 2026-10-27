@@ -1,6 +1,6 @@
 {
   "name": "proxmox-ai",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Run Proxmox VE from Claude Code. Inspect nodes, VMs, storage, backups and vRouters, build templates, and propose changes that stop at a human confirmation before anything runs.",
   "author": {
     "name": "Nur Hamim",
@@ -10,5 +10,32 @@
   "homepage": "https://proxmox.ai.id",
   "repository": "https://github.com/hamimistimewa/proxmox-ai-mcp",
   "license": "MIT",
-  "keywords": ["proxmox", "virtualization", "infrastructure", "homelab", "devops", "mcp", "vm", "backup"]
+  "keywords": [
+    "proxmox",
+    "virtualization",
+    "infrastructure",
+    "homelab",
+    "devops",
+    "mcp",
+    "vm",
+    "backup"
+  ],
+  "displayName": "Proxmox AI",
+  "icon": "./.claude-plugin/icon.png",
+  "documentationUrl": "https://proxmox.ai.id/mcp",
+  "supportUrl": "https://github.com/hamimistimewa/proxmox-ai-mcp/issues",
+  "userConfig": {
+    "api_key": {
+      "type": "string",
+      "title": "Proxmox AI API key",
+      "description": "Issue one in your dashboard under API keys. Its role decides which tools appear; a Readonly key never receives a tool that writes.",
+      "sensitive": true
+    },
+    "base_url": {
+      "type": "string",
+      "title": "Platform URL",
+      "description": "Leave as is unless you self-host the platform.",
+      "default": "https://proxmox.ai.id"
+    }
+  }
 }

@@ -7,7 +7,7 @@
 # the curl skill into ~/.claude/skills/ and ~/.codex/skills/ when those exist. Claude Code and Codex can then
 # run `pmx` straight from the shell — no MCP server involved.
 #
-# Prefer first-class MCP tools instead? Use: node bin/install.mjs --url … --key …
+# Prefer first-class MCP tools instead? Use: node server/install.mjs --url … --key …
 set -eu
 
 URL=""; KEY=""
@@ -55,7 +55,7 @@ for d in "$HOME/.local/bin" "$HOME/bin"; do
 done
 [ -n "$BIN" ] || BIN="$HOME/.local/bin"
 mkdir -p "$BIN"
-ln -sf "$HERE/bin/pmx" "$BIN/pmx"
+ln -sf "$HERE/server/pmx" "$BIN/pmx"
 printf '  v  pmx linked — %s/pmx\n' "$BIN"
 case ":$PATH:" in
   *":$BIN:"*) : ;;

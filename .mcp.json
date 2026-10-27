@@ -2,7 +2,13 @@
   "mcpServers": {
     "proxmox-ai": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/proxmox-ai-mcp.mjs"]
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/server/proxmox-ai-mcp.mjs"
+      ],
+      "env": {
+        "PROXMOX_AI_KEY": "${user_config.api_key}",
+        "PROXMOX_AI_URL": "${user_config.base_url}"
+      }
     }
   }
 }
