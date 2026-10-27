@@ -5,6 +5,7 @@
     "email": "hamimistimewa@gmail.com",
     "url": "https://proxmox.ai.id"
   },
+  "description": "Proxmox VE from your AI client, with a human confirmation in front of every change.",
   "metadata": {
     "description": "Proxmox VE from your AI client, with a human confirmation in front of every change.",
     "version": "1.3.0"

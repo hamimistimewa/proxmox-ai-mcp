@@ -25,16 +25,9 @@ less proxmox-ai-install.sh          # it is ~120 lines of POSIX shell
 sh proxmox-ai-install.sh --key pak_xxxxxxxxxxxx_…
 ```
 
-<details>
-<summary>One-liner, if you would rather not read it first</summary>
-
-```sh
-curl -fsSL https://proxmox.ai.id/mcp.sh | sh -s -- --key pak_xxxxxxxxxxxx_…
-```
-
-Piping a remote script into a shell runs code nobody has looked at. The two-step form above is the
-same installer with a chance to read it first.
-</details>
+A one-line form exists at [proxmox.ai.id/mcp](https://proxmox.ai.id/mcp) for anyone who wants it.
+It pipes the same script straight into a shell, which runs code nobody has read, so the two steps
+above are the documented path.
 
 It fetches this repo into `~/.proxmox-ai/src`, checks the key against the platform before writing
 anything, and then sets up whichever path your machine can run: with Node it registers a real MCP
