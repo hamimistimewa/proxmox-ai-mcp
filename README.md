@@ -7,9 +7,34 @@ infrastructure, through the [Proxmox AI](https://proxmox.ai.id) platform.
 
 ## Quick start
 
+### In Claude Code
+
+Install it as a plugin and let Claude Code ask for your key — nothing is downloaded by a shell:
+
+```
+/plugin install proxmox-ai --marketplace hamimistimewa/proxmox-ai-mcp
+```
+
+### Anywhere else
+
+Download the installer, read it, then run it:
+
+```sh
+curl -fsSL -o proxmox-ai-install.sh https://proxmox.ai.id/mcp.sh
+less proxmox-ai-install.sh          # it is ~120 lines of POSIX shell
+sh proxmox-ai-install.sh --key pak_xxxxxxxxxxxx_…
+```
+
+<details>
+<summary>One-liner, if you would rather not read it first</summary>
+
 ```sh
 curl -fsSL https://proxmox.ai.id/mcp.sh | sh -s -- --key pak_xxxxxxxxxxxx_…
 ```
+
+Piping a remote script into a shell runs code nobody has looked at. The two-step form above is the
+same installer with a chance to read it first.
+</details>
 
 It fetches this repo into `~/.proxmox-ai/src`, checks the key against the platform before writing
 anything, and then sets up whichever path your machine can run: with Node it registers a real MCP
@@ -215,7 +240,7 @@ The bundled skill is what teaches the model that discipline — tool description
 | --- | --- |
 | `~/.proxmox-ai/config.json` | your platform URL and API key, mode `600` |
 | `~/.local/bin/pmx` | symlink to `server/pmx` (shell path) |
-| `~/.claude/skills/proxmox-ai/`, `~/.codex/skills/proxmox-ai/` | the skill |
+| `~/.claude/skills/proxmox-operations/`, `~/.codex/skills/proxmox-operations/` | the skill |
 | `~/.claude.json` | Claude Code: a path to the MCP server |
 | `~/Library/Application Support/Claude/claude_desktop_config.json` | Claude Desktop (`~/.config/Claude/` on Linux, `%APPDATA%` on Windows) |
 | `~/.codex/config.toml` | Codex CLI, as `[mcp_servers.proxmox_ai]` |

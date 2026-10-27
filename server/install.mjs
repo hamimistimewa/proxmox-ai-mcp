@@ -15,11 +15,12 @@ import { loadConfig, fetchManifest } from '../lib/client.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = resolve(HERE, 'proxmox-ai-mcp.mjs');
-const SKILL_SRC = resolve(HERE, '..', 'skills', 'proxmox-ai');
+const SKILL_SRC = resolve(HERE, '..', 'skills', 'proxmox-operations');
 const HOME = homedir();
 const CONFIG_DIR = join(HOME, '.proxmox-ai');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const NAME = 'proxmox-ai';
+const SKILL_NAME = 'proxmox-operations';
 
 const ok = (s) => console.log(`  \x1b[32m✓\x1b[0m ${s}`);
 const skip = (s) => console.log(`  \x1b[90m·\x1b[0m ${s}`);
@@ -88,10 +89,10 @@ function registerCodex() {
 function installSkill() {
   const dir = join(HOME, '.claude', 'skills');
   if (!existsSync(join(HOME, '.claude'))) return skip('Claude skill — ~/.claude not found');
-  if (!existsSync(SKILL_SRC)) return warn('Claude skill — skills/proxmox-ai is missing from this clone');
+  if (!existsSync(SKILL_SRC)) return warn('Claude skill — skills/proxmox-operations is missing from this clone');
   mkdirSync(dir, { recursive: true });
-  cpSync(SKILL_SRC, join(dir, NAME), { recursive: true });
-  return ok(`Claude skill — installed (${join(dir, NAME)})`);
+  cpSync(SKILL_SRC, join(dir, SKILL_NAME), { recursive: true });
+  return ok(`Claude skill — installed (${join(dir, SKILL_NAME)})`);
 }
 
 async function main() {

@@ -14,7 +14,6 @@
       "name": "proxmox-ai",
       "source": "./",
       "description": "Run Proxmox VE from Claude Code. Inspect nodes, VMs, storage, backups and vRouters, build templates, and propose changes that stop at a human confirmation before anything runs.",
-      "category": "infrastructure",
       "keywords": [
         "proxmox",
         "virtualization",

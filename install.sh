@@ -67,7 +67,7 @@ for d in "$HOME/.claude/skills" "$HOME/.codex/skills"; do
   parent="$(dirname "$d")"
   if [ -d "$parent" ]; then
     mkdir -p "$d/proxmox-ai"
-    cp "$HERE/skills/proxmox-ai-curl/SKILL.md" "$d/proxmox-ai/SKILL.md"
+    cp "$HERE/skills/proxmox-ai-curl/SKILL.md" "$d/proxmox-operations/SKILL.md"
     printf '  v  skill installed — %s/proxmox-ai\n' "$d"
   else
     printf '  .  %s — not installed\n' "$parent"
