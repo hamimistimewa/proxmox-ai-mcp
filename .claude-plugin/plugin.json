@@ -24,6 +24,8 @@
   "icon": "./.claude-plugin/icon.png",
   "documentationUrl": "https://proxmox.ai.id/mcp",
   "supportUrl": "https://github.com/hamimistimewa/proxmox-ai-mcp/issues",
+  "privacyPolicyUrl": "https://proxmox.ai.id/en/privacy",
+  "termsOfServiceUrl": "https://proxmox.ai.id/en/terms",
   "userConfig": {
     "api_key": {
       "type": "string",
