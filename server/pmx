@@ -111,13 +111,45 @@ cmd="${1:-help}"
 case "$cmd" in
   me)      api GET /me | pretty ;;
   tools)
-    # The manifest is the authoritative list of what this key may call.
+    # The manifest is the authoritative list of what this key may call. Printed in the groups the
+    # platform assigns, and in its order, because a flat run of 67 names is a list you have to read
+    # rather than one you can look something up in. An argument narrows it: `pmx tools backup`.
+    #   ~ changes something and needs a proposal    ! the confirmation step itself
     _m="$(api GET /mcp/manifest)"
+    _filter="${1:-}"
     if command -v jq >/dev/null 2>&1; then
-      printf '%s' "$_m" | jq -r '"scope: \(.scope)  role: \(.role // "platform")  org: \(.organization.name // "-")\n",
-        (.tools[] | "  \(.name)\t\(.method) \(.path)")'
+      printf '%s' "$_m" | jq -r --arg f "$_filter" '
+        ($f | ascii_downcase) as $q
+        | [.tools[] | select($q == "" or (([.name, .description, .group] | join(" ") | ascii_downcase) | contains($q)))] as $t
+        # Groups in the order the platform lists them, not alphabetical: first appearance wins.
+        | ($t | map(.group) | reduce .[] as $g ([]; if index($g) then . else . + [$g] end)) as $order
+        | "scope: \(.scope)  role: \(.role // "platform")  org: \(.organization.name // "-")",
+          "\($t | length) of \(.tools | length) tools" + (if $q == "" then "" else " matching \"\($f)\"" end),
+          ($order[] | . as $g | "", $g, ($t[] | select(.group == $g)
+            | "  \(if .needs_confirmation then "!" elif .writes then "~" else " " end) \(.name)"))'
     else
-      printf '%s' "$_m" | pretty
+      # No jq: same grouping, same markers, through python3 -- which pretty already relies on.
+      printf '%s' "$_m" | PMX_FILTER="$_filter" python3 -c '
+import json, os, sys
+m = json.load(sys.stdin)
+q = os.environ.get("PMX_FILTER", "").lower()
+tools = [t for t in m["tools"]
+         if not q or q in " ".join([t["name"], t.get("description", ""), t.get("group", "")]).lower()]
+org = (m.get("organization") or {}).get("name") or "-"
+print("scope: %s  role: %s  org: %s" % (m["scope"], m.get("role") or "platform", org))
+print("%d of %d tools%s" % (len(tools), len(m["tools"]), (' matching \"%s\"' % q) if q else ''))
+order = []
+for t in tools:
+    g = t.get("group") or "Other"
+    if g not in order:
+        order.append(g)
+for g in order:
+    print()
+    print(g)
+    for t in (x for x in tools if (x.get("group") or "Other") == g):
+        mark = "!" if t.get("needs_confirmation") else "~" if t.get("writes") else " "
+        print("  %s %s" % (mark, t["name"]))
+'
     fi ;;
   get)
     _p="${1:?pmx get <path> [key=value ...]}"; shift || true
