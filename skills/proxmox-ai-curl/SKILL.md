@@ -1,5 +1,5 @@
 ---
-name: proxmox-ai
+name: proxmox-operations
 description: Operate Proxmox VE through the Proxmox AI platform using the `pmx` shell command — inspect nodes, clusters, guests, storage, backups and vRouters, and propose changes that a human confirms. Use whenever the user asks about their Proxmox infrastructure, their VMs or containers, node capacity or load, backup coverage, or wants a VM created, resized, powered on or off, or any other change to their virtualisation infrastructure.
 ---
 
