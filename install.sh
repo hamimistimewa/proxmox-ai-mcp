@@ -66,9 +66,9 @@ esac
 for d in "$HOME/.claude/skills" "$HOME/.codex/skills"; do
   parent="$(dirname "$d")"
   if [ -d "$parent" ]; then
-    mkdir -p "$d/proxmox-ai"
+    mkdir -p "$d/proxmox-operations"
     cp "$HERE/skills/proxmox-ai-curl/SKILL.md" "$d/proxmox-operations/SKILL.md"
-    printf '  v  skill installed — %s/proxmox-ai\n' "$d"
+    printf '  v  skill installed — %s/proxmox-operations\n' "$d"
   else
     printf '  .  %s — not installed\n' "$parent"
   fi
