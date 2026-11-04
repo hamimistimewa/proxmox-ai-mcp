@@ -234,7 +234,6 @@ The bundled skill is what teaches the model that discipline — tool description
 | `~/.proxmox-ai/config.json` | your platform URL and API key, mode `600` |
 | `~/.local/bin/pmx` | symlink to `server/pmx` (shell path) |
 | `~/.claude/skills/proxmox-operations/`, `~/.codex/skills/proxmox-operations/` | the skill |
-| `~/.claude.json` | Claude Code: a path to the MCP server |
 | `~/Library/Application Support/Claude/claude_desktop_config.json` | Claude Desktop (`~/.config/Claude/` on Linux, `%APPDATA%` on Windows) |
 | `~/.codex/config.toml` | Codex CLI, as `[mcp_servers.proxmox_ai]` |
 | `~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`, `~/.gemini/settings.json` | Cursor, Windsurf, Gemini CLI |
@@ -242,14 +241,35 @@ The bundled skill is what teaches the model that discipline — tool description
 **The key is never written into a client's config** — those only get a path. Your dotfiles stay safe to
 commit. Clients that are not installed are skipped; existing entries are merged, never overwritten.
 
-## Using it from the OpenAI API instead
+Claude Code is not in that list on purpose: there this installs as a plugin, which asks for the key
+itself. See **Credentials & privacy** below.
 
-```sh
-node server/export-openai-tools.mjs --url https://proxmox.ai.id --key pak_…   # → schemas/openai-tools.json
-pip install openai && python examples/openai_client.py "ringkas kondisi infrastruktur saya"
-```
+## Credentials & privacy
 
-Generated from the same manifest, so it is filtered by your key's role in exactly the same way.
+There are two ways in, and they keep their credentials apart.
+
+**As a Claude Code plugin.** The key is a `userConfig` field marked `sensitive`, so Claude Code prompts
+for it and holds it in its own credential store. `.mcp.json` hands it to the server as
+`${user_config.api_key}` together with `PROXMOX_AI_PLUGIN=1`, and in that mode the server reads the key
+from that handshake and nowhere else — it opens no config file, honours no path override, and ignores
+any `PROXMOX_AI_KEY` you may have set in your shell for something else. Nothing is written to disk.
+
+**As the standalone CLI**, for Claude Desktop, Cursor, Windsurf, Gemini CLI, Codex, Docker, or the `pmx`
+shell command. These clients have no such prompt, so `install.sh` stores the key in
+`~/.proxmox-ai/config.json` with mode `600` after verifying it. That file is the only place this project
+ever writes a credential, and the MCP plugin never reads it.
+
+Either way:
+
+- The key travels to one host only: the platform URL you configured, `https://proxmox.ai.id` unless you
+  self-host. Grep the repo — it is the only URL in it.
+- No telemetry, no analytics, no third-party endpoint, and no dependencies that could add one: the
+  `dependencies` field in `package.json` is empty.
+- The key is never logged. Errors name the key as a *thing* to check; none of them print its value.
+- Nothing is sent to any AI vendor by this project. Your AI client talks to its own provider as it
+  always does; this server only answers that client over stdio.
+- Revoke a key in the dashboard under **Organization → API keys** and it stops working immediately —
+  no uninstall needed. For the CLI, delete `~/.proxmox-ai/config.json`.
 
 ## Getting a key
 

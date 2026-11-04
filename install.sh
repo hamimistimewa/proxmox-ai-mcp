@@ -7,7 +7,14 @@
 # the curl skill into ~/.claude/skills/ and ~/.codex/skills/ when those exist. Claude Code and Codex can then
 # run `pmx` straight from the shell — no MCP server involved.
 #
+# The key saved here belongs to the `pmx` shell command alone. It is sent only to the platform URL you
+# passed above, and the MCP plugin never reads it: inside Claude Code the plugin asks for the key itself
+# and keeps it in Claude Code's own credential store.
+#
 # Prefer first-class MCP tools instead? Use: node server/install.mjs --url … --key …
+# Using Claude Code? Install the plugin instead:
+#   /plugin marketplace add hamimistimewa/proxmox-ai-mcp
+#   /plugin install proxmox-ai
 set -eu
 
 URL=""; KEY=""
@@ -46,7 +53,7 @@ mkdir -p "$HOME/.proxmox-ai"
 umask 077
 printf '{\n  "url": "%s",\n  "key": "%s"\n}\n' "$BASE" "$KEY" > "$HOME/.proxmox-ai/config.json"
 chmod 600 "$HOME/.proxmox-ai/config.json" 2>/dev/null || true
-printf '  v  credentials saved — %s/.proxmox-ai/config.json (owner only)\n' "$HOME"
+printf '  v  key saved for the pmx command — %s/.proxmox-ai/config.json (owner only)\n' "$HOME"
 
 # put pmx somewhere the agent's shell will find it
 BIN=""

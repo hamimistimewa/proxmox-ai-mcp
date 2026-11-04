@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // One command that teaches every AI client on this machine about your Proxmox.
 //
-//   node bin/install.mjs --url https://proxmox.ai.id --key pak_…
+//   node server/install.mjs --url https://proxmox.ai.id --key pak_…
 //
 // It verifies the key against the platform first, writes the credentials to ~/.proxmox-ai/config.json with
 // owner-only permissions, and then registers this server with each client it actually finds. The client config
@@ -33,8 +33,10 @@ const APP_SUPPORT = platform() === 'darwin'
     : join(HOME, '.config');
 
 // Every client below stores MCP servers as JSON under some key; only the file and the key differ.
+// Claude Code is deliberately absent: there it installs as a plugin, which asks for the key itself and
+// keeps it in Claude Code's credential store. Registering it here would point that client at the key
+// this installer wrote, tying the two together for no gain — the plugin never reads this file.
 const JSON_CLIENTS = [
-  { label: 'Claude Code', file: join(HOME, '.claude.json'), key: 'mcpServers', createIfMissing: true },
   { label: 'Claude Desktop', file: join(APP_SUPPORT, 'Claude', 'claude_desktop_config.json'), key: 'mcpServers' },
   { label: 'Cursor', file: join(HOME, '.cursor', 'mcp.json'), key: 'mcpServers' },
   { label: 'Windsurf', file: join(HOME, '.codeium', 'windsurf', 'mcp_config.json'), key: 'mcpServers' },
@@ -98,7 +100,7 @@ function installSkill() {
 async function main() {
   const argv = process.argv.slice(2);
   if (argv.includes('--help') || argv.includes('-h')) {
-    console.log('Usage: node bin/install.mjs --url https://proxmox.ai.id --key pak_…\n');
+    console.log('Usage: node server/install.mjs --url https://proxmox.ai.id --key pak_…\n');
     console.log('Create the key in the dashboard under Organization → API keys.');
     console.log('The key decides which tools your AI client will see: readonly keys get read tools only.');
     return;
@@ -157,6 +159,12 @@ async function main() {
   for (const client of JSON_CLIENTS) registerJson(client);
   registerCodex();
   installSkill();
+
+  console.log('\nUsing Claude Code? Install it there as a plugin instead of with this installer:');
+  console.log('  /plugin marketplace add hamimistimewa/proxmox-ai-mcp');
+  console.log('  /plugin install proxmox-ai');
+  console.log('  It asks for the key itself and keeps it in Claude Code\'s credential store, so nothing');
+  console.log('  on disk is involved.');
 
   console.log('\nRestart your AI client, then ask it something like:');
   console.log('  "node mana yang RAM-nya paling mepet?"');

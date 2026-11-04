@@ -16,9 +16,14 @@
 #   pmx confirm 42               run a proposal a human has read
 #   pmx cancel 42
 #
+# This is the standalone shell client, not the MCP plugin. The key it reads is the one you gave
+# install.sh, it is sent only to the platform URL stored beside it, and it is never written to a log
+# or passed to anything else. Inside Claude Code the plugin asks for the key itself and keeps it in
+# Claude Code's credential store, so the plugin never reads the file below.
+#
 # Configuration, in order of precedence:
 #   PROXMOX_AI_URL / PROXMOX_AI_KEY in the environment
-#   ~/.proxmox-ai/config.json      (written by install.sh or bin/install.mjs)
+#   ~/.proxmox-ai/config.json      (written by install.sh or server/install.mjs)
 set -eu
 
 CONFIG="${PROXMOX_AI_CONFIG:-$HOME/.proxmox-ai/config.json}"
