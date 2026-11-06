@@ -41,7 +41,23 @@ const JSON_CLIENTS = [
   { label: 'Cursor', file: join(HOME, '.cursor', 'mcp.json'), key: 'mcpServers' },
   { label: 'Windsurf', file: join(HOME, '.codeium', 'windsurf', 'mcp_config.json'), key: 'mcpServers' },
   { label: 'Gemini CLI', file: join(HOME, '.gemini', 'settings.json'), key: 'mcpServers' },
+  { label: 'Qwen Code', file: join(HOME, '.qwen', 'settings.json'), key: 'mcpServers' },
   { label: 'VS Code (Copilot)', file: join(APP_SUPPORT, 'Code', 'User', 'mcp.json'), key: 'servers' },
+];
+
+// Codex and DeepSeek CLI keep their MCP servers in TOML under the same [mcp_servers.<name>] shape.
+const TOML_CLIENTS = [
+  { label: 'Codex CLI', file: join(HOME, '.codex', 'config.toml') },
+  // The project renamed itself: it reads the new path first and still honours the old one.
+  { label: 'DeepSeek CLI', file: join(HOME, '.weiping-whale', 'config.toml'), alt: join(HOME, '.deepseek-cli', 'config.toml') },
+];
+
+// Directories each agent scans for skills. DeepSeek CLI also reads ~/.claude/skills on its own,
+// so a machine with both gets the skill once and both find it.
+const SKILL_DIRS = [
+  { label: 'Claude', dir: join(HOME, '.claude', 'skills'), needs: join(HOME, '.claude') },
+  { label: 'Codex', dir: join(HOME, '.codex', 'skills'), needs: join(HOME, '.codex') },
+  { label: 'DeepSeek CLI', dir: join(HOME, '.weiping-whale', 'skills'), needs: join(HOME, '.weiping-whale') },
 ];
 
 const readJson = (file) => {
@@ -62,11 +78,11 @@ function registerJson({ label, file, key, createIfMissing }) {
   return ok(`${label} — ${before === JSON.stringify(servers[NAME]) ? 'already registered' : 'registered'} (${file})`);
 }
 
-// Codex keeps its MCP servers in TOML. Rather than depend on a TOML library, replace our own block if it is
-// there and append it if it is not; nothing else in the file is touched.
-function registerCodex() {
-  const file = join(HOME, '.codex', 'config.toml');
-  if (!existsSync(dirname(file))) return skip('Codex CLI — not installed');
+// Rather than depend on a TOML library, replace our own block if it is there and append it if it is
+// not; nothing else in the file is touched.
+function registerToml({ label, file, alt }) {
+  if (alt && !existsSync(dirname(file)) && existsSync(dirname(alt))) file = alt;
+  if (!existsSync(dirname(file))) return skip(`${label} — not installed`);
   const block = [
     '[mcp_servers.proxmox_ai]',
     `command = ${JSON.stringify(process.execPath)}`,
@@ -84,17 +100,19 @@ function registerCodex() {
   }
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, text);
-  return ok(`Codex CLI — registered (${file})`);
+  return ok(`${label} — registered (${file})`);
 }
 
 // The skill is what teaches Claude the propose → confirm discipline; the tool list alone does not.
-function installSkill() {
-  const dir = join(HOME, '.claude', 'skills');
-  if (!existsSync(join(HOME, '.claude'))) return skip('Claude skill — ~/.claude not found');
-  if (!existsSync(SKILL_SRC)) return warn('Claude skill — skills/proxmox-operations is missing from this clone');
-  mkdirSync(dir, { recursive: true });
-  cpSync(SKILL_SRC, join(dir, SKILL_NAME), { recursive: true });
-  return ok(`Claude skill — installed (${join(dir, SKILL_NAME)})`);
+function installSkills() {
+  if (!existsSync(SKILL_SRC)) return warn('skill — skills/proxmox-operations is missing from this clone');
+  for (const { label, dir, needs } of SKILL_DIRS) {
+    if (!existsSync(needs)) { skip(`${label} skill — ${needs} not found`); continue; }
+    mkdirSync(dir, { recursive: true });
+    cpSync(SKILL_SRC, join(dir, SKILL_NAME), { recursive: true });
+    ok(`${label} skill — installed (${join(dir, SKILL_NAME)})`);
+  }
+  return undefined;
 }
 
 async function main() {
@@ -157,8 +175,8 @@ async function main() {
 
   console.log('\nRegistering with the AI clients on this machine:');
   for (const client of JSON_CLIENTS) registerJson(client);
-  registerCodex();
-  installSkill();
+  for (const client of TOML_CLIENTS) registerToml(client);
+  installSkills();
 
   console.log('\nUsing Claude Code? Install it there as a plugin instead of with this installer:');
   console.log('  /plugin marketplace add hamimistimewa/proxmox-ai-mcp');

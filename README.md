@@ -236,7 +236,9 @@ The bundled skill is what teaches the model that discipline — tool description
 | `~/.claude/skills/proxmox-operations/`, `~/.codex/skills/proxmox-operations/` | the shell skill, copied from `cli-skill/SKILL.md` |
 | `~/Library/Application Support/Claude/claude_desktop_config.json` | Claude Desktop (`~/.config/Claude/` on Linux, `%APPDATA%` on Windows) |
 | `~/.codex/config.toml` | Codex CLI, as `[mcp_servers.proxmox_ai]` |
-| `~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`, `~/.gemini/settings.json` | Cursor, Windsurf, Gemini CLI |
+| `~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`, `~/.gemini/settings.json`, `~/.qwen/settings.json` | Cursor, Windsurf, Gemini CLI, Qwen Code |
+| `~/.weiping-whale/config.toml` | DeepSeek CLI, as `[mcp_servers.proxmox_ai]` (the older `~/.deepseek-cli/` is honoured too) |
+| `~/.codex/skills/`, `~/.weiping-whale/skills/` | the skill, for the agents that scan their own skills directory |
 
 **The key is never written into a client's config** — those only get a path. Your dotfiles stay safe to
 commit. Clients that are not installed are skipped; existing entries are merged, never overwritten.
