@@ -45,8 +45,20 @@ OpenAI or Qwen account pays for the model. Neither stands in for the other.
 
 ### Your own model endpoint, for Codex
 
-Codex can talk to any endpoint that serves the **Responses API** — not just chat completions. Point
-it at yours as a *profile*, so the setup you already have is untouched:
+Codex can talk to any endpoint that serves the **Responses API** — not just chat completions.
+
+Configure it once in the dashboard, under **AI settings**: the platform already stores a base URL
+and a model there for its own assistant, and the installer now reads them from the tool manifest.
+Any machine that installs afterwards gets a Codex profile pointing at your endpoint, with no flag
+to remember:
+
+```
+✓ Codex profile — written (~/.codex/custom.config.toml)
+```
+
+Only the URL and the model travel. **The key for that endpoint is never carried** — it is whoever
+runs the agent who supplies it, which is also why one person's gateway key never lands on someone
+else's laptop. To set it up for a machine without touching AI settings, pass it directly instead:
 
 ```sh
 curl -fsSL https://proxmox.ai.id/install-agent.sh | sh -s -- \
@@ -54,11 +66,11 @@ curl -fsSL https://proxmox.ai.id/install-agent.sh | sh -s -- \
   --provider-model your-model-id
 ```
 
-That writes `~/.codex/custom.config.toml` and nothing else — your base `~/.codex/config.toml` is
+Either way only `~/.codex/custom.config.toml` is written — your base `~/.codex/config.toml` is
 left alone. Then:
 
 ```sh
-export CODEX_CUSTOM_API_KEY="your-key"
+export CODEX_CUSTOM_API_KEY="your key for that endpoint"
 codex --profile custom
 ```
 

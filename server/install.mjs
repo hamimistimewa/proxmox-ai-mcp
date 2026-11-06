@@ -130,6 +130,37 @@ function linkPmx() {
   }
 }
 
+// The organization can configure its own OpenAI-compatible endpoint under AI settings, and the
+// manifest hands on its URL and model — never the key, which belongs to whoever runs the agent. If
+// one is set and Codex is here, write it as a Codex *profile*: `--profile custom` reaches it, and
+// the config the user already had keeps working untouched when they do not ask for it.
+function writeCodexProfile(endpoint) {
+  if (!endpoint?.base_url || !endpoint?.model) return undefined;
+  const dir = join(HOME, '.codex');
+  if (!existsSync(dir)) return undefined;
+  const file = join(dir, 'custom.config.toml');
+  const toml = [
+    '# Written by the Proxmox AI installer, from your organization\'s AI settings.',
+    '# Reached with: codex --profile custom. Your base config.toml is untouched.',
+    `model = ${JSON.stringify(endpoint.model)}`,
+    'model_provider = "custom"',
+    '',
+    '[model_providers.custom]',
+    'name = "Organization endpoint"',
+    `base_url = ${JSON.stringify(endpoint.base_url)}`,
+    'env_key = "CODEX_CUSTOM_API_KEY"',
+    'wire_api = "responses"',
+    'requires_openai_auth = false',
+    '',
+  ].join('\n');
+  try {
+    writeFileSync(file, toml, { mode: 0o600 });
+    return ok(`Codex profile — written (${file})`);
+  } catch (err) {
+    return warn(`Codex profile — could not write: ${err.message}`);
+  }
+}
+
 function installSkills() {
   if (!existsSync(SKILL_SRC)) return warn('skill — skills/proxmox-operations is missing from this clone');
   for (const { label, dir, needs } of SKILL_DIRS) {
@@ -220,7 +251,16 @@ async function main() {
   for (const client of JSON_CLIENTS) registerJson(client);
   for (const client of TOML_CLIENTS) registerToml(client);
   linkPmx();
+  const profiled = writeCodexProfile(manifest.model_endpoint);
   installSkills();
+
+  if (profiled) {
+    console.log('\nYour organization has its own model endpoint, and Codex can use it:');
+    console.log('  export CODEX_CUSTOM_API_KEY="your key for that endpoint"');
+    console.log('  codex --profile custom');
+    console.log('Without --profile, Codex keeps using whatever account it signed in to. The key for');
+    console.log('that endpoint is yours to supply — this installer never carries one.');
+  }
 
   console.log('\nIn Claude Code there is also a plugin, if you prefer it to ask for the key itself');
   console.log('and keep it out of any file:');
