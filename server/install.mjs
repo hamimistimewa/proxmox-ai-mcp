@@ -187,7 +187,9 @@ async function main() {
   console.log('\nRestart your AI client, then ask it something like:');
   console.log('  "node mana yang RAM-nya paling mepet?"');
   if (manifest.tools.some((t) => t.name === 'propose_action')) {
-    console.log('\nThis key may propose changes. Nothing runs until a human confirms it in the dashboard.');
+    console.log('\nThis key may propose changes, and nothing runs until you confirm. Confirming is a');
+    console.log('reply: the agent shows you the plan and waits, and "lanjut" or "go ahead" is what');
+    console.log('sends it. Right there in the terminal — the dashboard is only the other way to do it.');
   } else {
     console.log('\nThis key is read only — no tool that changes anything was installed.');
   }
