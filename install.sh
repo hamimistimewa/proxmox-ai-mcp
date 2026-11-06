@@ -17,7 +17,7 @@
 #   /plugin install proxmox-ai
 set -eu
 
-URL=""; KEY=""
+URL="https://proxmox.ai.id"; KEY=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --url) URL="${2:?--url needs a value}"; shift 2 ;;
@@ -28,7 +28,15 @@ while [ $# -gt 0 ]; do
     *) echo "install.sh: unknown argument '$1'" >&2; exit 2 ;;
   esac
 done
-[ -n "$URL" ] && [ -n "$KEY" ] || { echo "Usage: ./install.sh --url https://proxmox.ai.id --key pak_..." >&2; exit 2; }
+# Asking is kinder than refusing, and the bootstrap already does it — doing it here too means
+# --key is optional wherever you start from.
+if [ -z "$KEY" ] && [ -r /dev/tty ]; then
+  printf '\nPaste your Proxmox AI key (Dashboard -> API keys). It starts with pak_\nKey: '
+  read KEY < /dev/tty || KEY=""
+  KEY="$(printf '%s' "$KEY" | tr -d ' \t\r\n')"
+  printf '\n'
+fi
+[ -n "$URL" ] && [ -n "$KEY" ] || { echo "Usage: ./install.sh [--url https://proxmox.ai.id] --key pak_..." >&2; exit 2; }
 command -v curl >/dev/null 2>&1 || { echo "install.sh: curl is required" >&2; exit 1; }
 
 HERE="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"

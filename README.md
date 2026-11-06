@@ -32,7 +32,8 @@ Then it registers the MCP server with every agent on the machine — Claude Code
 and then. Three answers — which agent, your key, your model account —
 and nothing is left to do. A machine that already has its agents skips the first question.
 
-Pass `--key pak_…` to skip being asked, which is what a script wants.
+Pass `--key pak_…` to skip being asked, which is what a script wants. Every entry point below
+takes it the same way: give it, or be asked.
 
 Setting up several machines at once? `--agent codex` answers it ahead of time, and `--agent none`
 declines. The agent installs under `~/.proxmox-ai/agents` and is linked onto your `PATH`: nothing
@@ -48,8 +49,8 @@ Fair. It is the file in this repo, so read it here or download it:
 
 ```sh
 curl -fsSL -o install-agent.sh https://proxmox.ai.id/install-agent.sh
-less install-agent.sh               # ~260 lines of POSIX shell, same file as this repo's
-sh install-agent.sh --key pak_xxxxxxxxxxxx_…
+less install-agent.sh               # POSIX shell, the same file as this repo's
+sh install-agent.sh
 ```
 
 It fetches this repo into `~/.proxmox-ai/src`, checks the key against the platform before writing
@@ -112,7 +113,7 @@ guardrail live on the platform.
 ```sh
 git clone https://github.com/hamimistimewa/proxmox-ai-mcp
 cd proxmox-ai-mcp
-./install.sh --url https://proxmox.ai.id --key pak_xxxxxxxxxxxx_…
+./install.sh                        # asks for the key; --key pak_… skips the question
 ```
 
 That checks the key, saves it to `~/.proxmox-ai/config.json` (mode `600`), links `pmx` onto your `PATH`, and
@@ -147,7 +148,7 @@ curl -sS -H "Authorization: Bearer pak_…" https://proxmox.ai.id/api/v1/nodes
 ## B · MCP server (Node 20+)
 
 ```sh
-node server/install.mjs --url https://proxmox.ai.id --key pak_xxxxxxxxxxxx_…
+node server/install.mjs             # asks for the key; --key pak_… skips the question
 ```
 
 Same checks, then it registers this server with every AI client it finds and installs the skill. Restart the

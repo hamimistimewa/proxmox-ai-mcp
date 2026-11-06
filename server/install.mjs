@@ -11,6 +11,7 @@ import { homedir, platform, hostname, userInfo } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createInterface } from 'node:readline';
 import { loadConfig, fetchManifest } from '../lib/client.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -142,6 +143,23 @@ function installSkills() {
 
 async function main() {
   const argv = process.argv.slice(2);
+  // Same courtesy as the bootstrap: a missing key is asked for, not refused, so --key is optional
+  // wherever someone starts from. Non-interactive callers still pass it and never reach this.
+  if (!argv.some((a) => a === '--key' || a.startsWith('--key=')) && process.stdin.isTTY) {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await new Promise((res) => {
+      rl.question('\nPaste your Proxmox AI key (Dashboard -> API keys). It starts with pak_\nKey: ', res);
+    });
+    rl.close();
+    const key = String(answer).trim();
+    if (key) argv.push('--key', key);
+    console.log();
+  }
+  // The platform URL has one sensible value and install.sh already defaults to it. Without the same
+  // default here, a prompted key still failed for want of a flag nobody was asked for.
+  if (!argv.some((a) => a === '--url' || a.startsWith('--url='))) {
+    argv.push('--url', 'https://proxmox.ai.id');
+  }
   if (argv.includes('--help') || argv.includes('-h')) {
     console.log('Usage: node server/install.mjs --url https://proxmox.ai.id --key pak_…\n');
     console.log('Create the key in the dashboard under Organization → API keys.');
