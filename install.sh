@@ -36,7 +36,15 @@ BASE="$(printf '%s' "$URL" | sed -e 's#/*$##' -e 's#/api/v1$##')"
 API="$BASE/api/v1"
 
 printf '\nChecking %s …\n' "$API"
-MANIFEST="$(printf 'authorization: Bearer %s\n' "$KEY" \
+# A key pinned to machines is refused without an identifier for this machine, so make one before the
+# check rather than after: otherwise the check fails and the install stops on a key that is fine.
+DEVICE="$(sed -n 's/.*"device"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$HOME/.proxmox-ai/config.json" 2>/dev/null | head -n 1)"
+if [ -z "$DEVICE" ]; then
+  DEVICE="$( (od -An -tx1 -N16 /dev/urandom 2>/dev/null || date +%s%N) | tr -d ' \n')"
+fi
+DEVICE_NAME="$(id -un 2>/dev/null || echo user)@$(hostname 2>/dev/null || echo machine)"
+
+MANIFEST="$(printf 'authorization: Bearer %s\nx-pmx-device: %s\nx-pmx-device-name: %s\n' "$KEY" "$DEVICE" "$DEVICE_NAME" \
   | curl -sS --fail-with-body -H @- -H 'accept: application/json' "$API/mcp/manifest" 2>/dev/null)" || true
 case "$MANIFEST" in
   *'"tools"'*) : ;;
@@ -51,7 +59,8 @@ printf '  v  key accepted — %s%s, %s tools\n' "${ORG:-platform scope}" "${ROLE
 
 mkdir -p "$HOME/.proxmox-ai"
 umask 077
-printf '{\n  "url": "%s",\n  "key": "%s"\n}\n' "$BASE" "$KEY" > "$HOME/.proxmox-ai/config.json"
+printf '{\n  "url": "%s",\n  "key": "%s",\n  "device": "%s",\n  "device_name": "%s"\n}\n' \
+  "$BASE" "$KEY" "$DEVICE" "$DEVICE_NAME" > "$HOME/.proxmox-ai/config.json"
 chmod 600 "$HOME/.proxmox-ai/config.json" 2>/dev/null || true
 printf '  v  key saved for the pmx command — %s/.proxmox-ai/config.json (owner only)\n' "$HOME"
 

@@ -35,6 +35,9 @@ json_field() {
 
 URL="${PROXMOX_AI_URL:-}"
 KEY="${PROXMOX_AI_KEY:-}"
+# A key pinned to machines is refused outright without this, so it is read the same way as the key.
+DEVICE="${PROXMOX_AI_DEVICE:-}"
+DEVICE_NAME="${PROXMOX_AI_DEVICE_NAME:-}"
 if [ -z "$URL" ] || [ -z "$KEY" ]; then
   [ -f "$CONFIG" ] || {
     echo "pmx: no configuration." >&2
@@ -43,6 +46,8 @@ if [ -z "$URL" ] || [ -z "$KEY" ]; then
   }
   [ -n "$URL" ] || URL="$(json_field url)"
   [ -n "$KEY" ] || KEY="$(json_field key)"
+  [ -n "$DEVICE" ] || DEVICE="$(json_field device)"
+  [ -n "$DEVICE_NAME" ] || DEVICE_NAME="$(json_field device_name)"
 fi
 [ -n "$URL" ] && [ -n "$KEY" ] || { echo "pmx: platform URL or API key is missing from $CONFIG" >&2; exit 2; }
 
@@ -57,6 +62,15 @@ pretty() {
   fi
 }
 
+# Every header curl needs, on stdin. Nothing here reaches the process list, which is why the key is
+# passed this way and not as an argument.
+headers() {
+  printf 'authorization: Bearer %s\n' "$KEY"
+  [ -n "$DEVICE" ] && printf 'x-pmx-device: %s\n' "$DEVICE"
+  [ -n "$DEVICE_NAME" ] && printf 'x-pmx-device-name: %s\n' "$DEVICE_NAME"
+  return 0
+}
+
 # The key never appears in the process list: curl reads the header from stdin.
 # On an HTTP error the platform still answers with JSON ({"error": "..."}), and that body is what is useful,
 # so curl's own message is kept off stdout and the status is reported separately.
@@ -67,11 +81,9 @@ api() {
   if [ "$_method" != "GET" ] && [ $# -gt 0 ]; then _body="$1"; fi
   _rc=0
   if [ "$_method" = "GET" ]; then
-    _out="$(printf 'authorization: Bearer %s\n' "$KEY" \
-      | curl -sS --fail-with-body -H @- -H 'accept: application/json' "$_url" 2>/dev/null)" || _rc=$?
+    _out="$(headers | curl -sS --fail-with-body -H @- -H 'accept: application/json' "$_url" 2>/dev/null)" || _rc=$?
   else
-    _out="$(printf 'authorization: Bearer %s\n' "$KEY" \
-      | curl -sS --fail-with-body -X "$_method" -H @- \
+    _out="$(headers | curl -sS --fail-with-body -X "$_method" -H @- \
         -H 'accept: application/json' -H 'content-type: application/json' \
         ${_body:+--data "$_body"} "$_url" 2>/dev/null)" || _rc=$?
   fi

@@ -257,7 +257,7 @@ The bundled skill is what teaches the model that discipline — tool description
 
 | File | Contents |
 | --- | --- |
-| `~/.proxmox-ai/config.json` | your platform URL and API key, mode `600` |
+| `~/.proxmox-ai/config.json` | your platform URL, API key and this machine's id, mode `600` |
 | `~/.local/bin/pmx` | symlink to `server/pmx` (shell path) |
 | `~/.claude/skills/proxmox-operations/`, `~/.codex/skills/proxmox-operations/` | the shell skill, copied from `cli-skill/SKILL.md` |
 | `~/Library/Application Support/Claude/claude_desktop_config.json` | Claude Desktop (`~/.config/Claude/` on Linux, `%APPDATA%` on Windows) |
@@ -306,7 +306,8 @@ shell command. These clients have no such prompt, so `install.sh` stores the key
 `~/.proxmox-ai/config.json` with mode `600` after verifying it. That file is the only place this project
 ever writes a credential, and the MCP plugin never reads it.
 
-**A key pinned to machines** works on both paths. The identifier that says which machine this is
+**A key pinned to machines** works on every path — the MCP server, the plugin, and the `pmx`
+command. The identifier that says which machine this is
 carries no secret and grants nothing on its own — an unrecognised one appears in the dashboard as a
 machine awaiting your approval. The CLI keeps it in `~/.proxmox-ai/config.json` beside the key; the
 plugin keeps it in its own `${CLAUDE_PLUGIN_DATA}` directory, so plugin mode still reads nothing of
