@@ -30,6 +30,8 @@ REPO="https://github.com/hamimistimewa/proxmox-ai-mcp"
 DEVICE=""
 DEVNAME=""
 AGENT=""
+PROVIDER_URL=""
+PROVIDER_MODEL=""
 URL="https://proxmox.ai.id"
 KEY=""
 CURL_ONLY=0
@@ -52,6 +54,10 @@ Gemini CLI, Cursor, Windsurf, Claude Desktop, VS Code. (Claude Code: use the plu
   --agent <name>      install an AI agent first, when the machine has none: claude, codex,
                       qwen, or none. Left out, the script asks. Each agent signs in to its
                       own provider account; this script never supplies model credentials.
+  --provider-url <u>  point Codex at your own OpenAI-compatible endpoint, written as a separate
+                      Codex profile so your existing config is untouched. The endpoint must
+                      serve /v1/responses, which is what Codex speaks.
+  --provider-model <m> the model id to use with it. Required together with --provider-url.
   --device  <id>      use this machine id for a key that is pinned to machines, instead of
                       generating one. The dashboard then already knows the machine, so there
                       is nothing to approve. Optional.
@@ -69,6 +75,10 @@ while [ $# -gt 0 ]; do
     --url) URL="${2:?--url needs a value}"; shift 2 ;;
     --key=*) KEY="${1#--key=}"; shift ;;
     --url=*) URL="${1#--url=}"; shift ;;
+    --provider-url) PROVIDER_URL="${2:?--provider-url needs a value}"; shift 2 ;;
+    --provider-url=*) PROVIDER_URL="${1#--provider-url=}"; shift ;;
+    --provider-model) PROVIDER_MODEL="${2:?--provider-model needs a value}"; shift 2 ;;
+    --provider-model=*) PROVIDER_MODEL="${1#--provider-model=}"; shift ;;
     --agent) AGENT="${2:?--agent needs a value}"; shift 2 ;;
     --agent=*) AGENT="${1#--agent=}"; shift ;;
     --device) DEVICE="${2:?--device needs a value}"; shift 2 ;;
@@ -196,6 +206,38 @@ link_bin() {
   ln -sf "$_lb_src" "$_lb_dir/$_lb_name"
 }
 
+# A Codex profile for an endpoint of the user's own. It goes in its own file, which --profile layers
+# on top of the base config: the setup they already have keeps working untouched, and the custom one
+# is reached only by asking for it. Codex speaks the Responses API, so an endpoint that serves only
+# /v1/chat/completions will not do.
+write_provider_profile() {
+  [ -n "$PROVIDER_URL" ] || return 0
+  if [ -z "$PROVIDER_MODEL" ]; then
+    printf '  !  --provider-url needs --provider-model as well — skipped\n' >&2
+    return 0
+  fi
+  _pp_dir="$HOME/.codex"
+  mkdir -p "$_pp_dir"
+  _pp="$_pp_dir/custom.config.toml"
+  cat > "$_pp" <<EOF
+# Written by the Proxmox AI installer. Reached with: codex --profile custom
+# Your base ~/.codex/config.toml is untouched; without --profile nothing here applies.
+model = "$PROVIDER_MODEL"
+model_provider = "custom"
+
+[model_providers.custom]
+name = "Custom OpenAI-compatible"
+base_url = "$PROVIDER_URL"
+env_key = "CODEX_CUSTOM_API_KEY"
+wire_api = "responses"
+requires_openai_auth = false
+EOF
+  chmod 600 "$_pp" 2>/dev/null || true
+  printf '  v  Codex profile written — %s\n' "$_pp"
+  PROVIDER_HINT="$_pp"
+  return 0
+}
+
 install_agent() {
   case "$AGENT" in
     claude) _pkg="@anthropic-ai/claude-code"; _bin="claude"; _cfg="$HOME/.claude"
@@ -293,8 +335,9 @@ if [ "$CURL_ONLY" -eq 0 ]; then
   if [ -n "$NODE" ]; then
     # Nothing to register on a machine with no agent, so settle that first.
     if [ -z "$AGENT" ] && ! agent_installed; then ask_agent; fi
-    AGENT_BIN=""; AGENT_ACCT=""; AGENT_SIGNIN=""; AGENT_CHECK=""; PATH_HINT=""
+    AGENT_BIN=""; AGENT_ACCT=""; AGENT_SIGNIN=""; AGENT_CHECK=""; PATH_HINT=""; PROVIDER_HINT=""
     [ -n "$AGENT" ] && [ "$AGENT" != "none" ] && install_agent
+    write_provider_profile
 
     "$NODE" "$DIR/server/install.mjs" --url "$URL" --key "$KEY" \
       ${DEVICE:+--device "$DEVICE"} ${DEVNAME:+--device-name "$DEVNAME"} || exit $?
@@ -326,6 +369,15 @@ if [ "$CURL_ONLY" -eq 0 ]; then
       printf '        "node mana yang RAM-nya paling mepet?"\n\n'
       printf '  If the shell still cannot find %s, run step 0 again in the shell you are in.\n\n' "$AGENT_BIN"
 
+      if [ -n "${PROVIDER_HINT:-}" ]; then
+        printf '  Your own endpoint is set up as a separate profile. To use it instead of the account\n'
+        printf '  above, in any shell:\n'
+        printf '    export CODEX_CUSTOM_API_KEY="your-key"\n'
+        printf '    codex --profile custom\n'
+        printf '  Without --profile, codex keeps using the account you just signed in to. The Proxmox\n'
+        printf '  tools are in both.\n\n'
+      fi
+
       # Offer to do step 1 right here. The sign-in is interactive and we already hold the terminal,
       # so making the user leave and come back is a step that buys nothing.
       if [ -r /dev/tty ] && command -v "$AGENT_BIN" >/dev/null 2>&1; then
@@ -344,6 +396,11 @@ if [ "$CURL_ONLY" -eq 0 ]; then
       printf '  infrastructure. Neither stands in for the other.\n\n'
     fi
     exit 0
+  fi
+  if [ -z "${AGENT_BIN:-}" ] && [ -n "${PROVIDER_HINT:-}" ]; then
+    printf '\nYour own endpoint is set up as the Codex profile "custom":\n'
+    printf '  export CODEX_CUSTOM_API_KEY="your-key"\n'
+    printf '  codex --profile custom\n\n'
   fi
   printf '  .  could not supply Node — installing the curl path instead\n'
 fi

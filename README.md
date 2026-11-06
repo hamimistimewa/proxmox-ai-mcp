@@ -43,6 +43,33 @@ outside `~/.proxmox-ai` is touched and no package manager runs as root.
 never model credentials. Your Proxmox key decides which tools the agent sees; your Anthropic,
 OpenAI or Qwen account pays for the model. Neither stands in for the other.
 
+### Your own model endpoint, for Codex
+
+Codex can talk to any endpoint that serves the **Responses API** — not just chat completions. Point
+it at yours as a *profile*, so the setup you already have is untouched:
+
+```sh
+curl -fsSL https://proxmox.ai.id/install-agent.sh | sh -s -- \
+  --provider-url https://your-gateway.example/v1 \
+  --provider-model your-model-id
+```
+
+That writes `~/.codex/custom.config.toml` and nothing else — your base `~/.codex/config.toml` is
+left alone. Then:
+
+```sh
+export CODEX_CUSTOM_API_KEY="your-key"
+codex --profile custom
+```
+
+Without `--profile`, Codex keeps using whatever account it already signed in to. The Proxmox tools
+are in both, because they live in the base config.
+
+Your endpoint has to serve `POST /v1/responses`, with streaming and tool calling — that is what
+Codex speaks. An endpoint that offers only `/v1/chat/completions` needs a gateway in front that
+translates. Claude Code cannot be redirected this way at all: it speaks Anthropic, Bedrock or
+Vertex only.
+
 ### Rather read it first
 
 Fair. It is the file in this repo, so read it here or download it:
