@@ -139,8 +139,8 @@ function linkPmx() {
 // has typed a prompt. So when the key is to hand, ask the endpoint what this key may actually use
 // and write that into the profile. The key is read from the environment and never stored.
 async function resolveModel(baseUrl, preferred) {
-  const key = process.env.CODEX_CUSTOM_API_KEY;
-  if (!key) return { model: preferred, note: 'set CODEX_CUSTOM_API_KEY before running this to have the model checked against your key' };
+  const key = process.env.AGENT_MODEL_API_KEY;
+  if (!key) return { model: preferred, note: 'set AGENT_MODEL_API_KEY before running this to have the model checked against your key' };
   let ids = [];
   try {
     const r = await fetch(`${String(baseUrl).replace(/\/+$/, '')}/models`, {
@@ -158,12 +158,12 @@ async function resolveModel(baseUrl, preferred) {
   return { model: ids[0], note: `your key may not use ${preferred ?? 'that model'} — picked ${ids[0]} from the ${ids.length} it does offer` };
 }
 
-async function writeCodexProfile(endpoint) {
+function writeCodexProfile(endpoint, picked) {
   if (!endpoint?.base_url) return undefined;
   const dir = join(HOME, '.codex');
   if (!existsSync(dir)) return undefined;
   const file = join(dir, 'custom.config.toml');
-  const { model, note } = await resolveModel(endpoint.base_url, endpoint.model);
+  const { model, note } = picked;
   if (!model) return warn('Codex profile — no model to write; set one in AI settings');
   const toml = [
     '# Written by the Proxmox AI installer, from your organization\'s AI settings.',
@@ -174,7 +174,7 @@ async function writeCodexProfile(endpoint) {
     '[model_providers.custom]',
     'name = "Organization endpoint"',
     `base_url = ${JSON.stringify(endpoint.base_url)}`,
-    'env_key = "CODEX_CUSTOM_API_KEY"',
+    'env_key = "AGENT_MODEL_API_KEY"',
     'wire_api = "responses"',
     'requires_openai_auth = false',
     '',
@@ -186,6 +186,34 @@ async function writeCodexProfile(endpoint) {
     return undefined;
   } catch (err) {
     return warn(`Codex profile — could not write: ${err.message}`);
+  }
+}
+
+// Qwen Code's own /auth writes the key into settings.json in plain text. This does not: the provider
+// entry names an environment variable instead, and the file keeps only the URL and the model. The
+// shape below is the one taken from a working install — modelProviders.openai is an array, and the
+// auth type is "openai-responses", neither of which the published docs make obvious.
+function writeQwenProvider(endpoint, model) {
+  const file = join(HOME, '.qwen', 'settings.json');
+  if (!existsSync(dirname(file))) return undefined;
+  const cfg = readJson(file) ?? {};
+  const base = String(endpoint.base_url).replace(/\/+$/, '');
+  const list = Array.isArray(cfg.modelProviders?.openai) ? cfg.modelProviders.openai : [];
+  const entry = {
+    id: model, name: model, baseUrl: base,
+    envKey: 'AGENT_MODEL_API_KEY', wireApi: 'responses',
+  };
+  const at = list.findIndex((e) => e?.baseUrl === base);
+  if (at >= 0) list[at] = { ...list[at], ...entry }; else list.push(entry);
+  cfg.modelProviders = { ...(cfg.modelProviders ?? {}), openai: list };
+  cfg.security = { ...(cfg.security ?? {}), auth: { ...(cfg.security?.auth ?? {}), selectedType: 'openai-responses' } };
+  cfg.model = { ...(cfg.model ?? {}), name: model, baseUrl: base };
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, `${JSON.stringify(cfg, null, 2)}\n`);
+    return ok(`Qwen Code provider — configured (${file})`);
+  } catch (err) {
+    return warn(`Qwen Code provider — could not write: ${err.message}`);
   }
 }
 
@@ -279,15 +307,22 @@ async function main() {
   for (const client of JSON_CLIENTS) registerJson(client);
   for (const client of TOML_CLIENTS) registerToml(client);
   linkPmx();
-  const profiled = manifest.model_endpoint ? await writeCodexProfile(manifest.model_endpoint) ?? true : undefined;
+  let profiled;
+  if (manifest.model_endpoint) {
+    const picked = await resolveModel(manifest.model_endpoint.base_url, manifest.model_endpoint.model);
+    writeCodexProfile(manifest.model_endpoint, picked);
+    writeQwenProvider(manifest.model_endpoint, picked.model);
+    profiled = true;
+  }
   installSkills();
 
   if (profiled) {
-    console.log('\nYour organization has its own model endpoint, and Codex can use it:');
-    console.log('  export CODEX_CUSTOM_API_KEY="your key for that endpoint"');
-    console.log('  codex --profile custom');
-    console.log('Without --profile, Codex keeps using whatever account it signed in to. The key for');
-    console.log('that endpoint is yours to supply — this installer never carries one.');
+    console.log('\nYour organization has its own model endpoint, and the agents here can use it:');
+    console.log('  export AGENT_MODEL_API_KEY="your key for that endpoint"');
+    console.log('  codex --profile custom      # Codex: only with --profile, otherwise unchanged');
+    console.log('  qwen                        # Qwen Code: configured, no flag needed');
+    console.log('One variable serves both. The key is yours to supply — it is read to check which');
+    console.log('models it may use and is never written into any file by this installer.');
   }
 
   console.log('\nIn Claude Code there is also a plugin, if you prefer it to ask for the key itself');

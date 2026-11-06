@@ -70,11 +70,16 @@ Either way only `~/.codex/custom.config.toml` is written — your base `~/.codex
 left alone. Then:
 
 ```sh
-export CODEX_CUSTOM_API_KEY="your key for that endpoint"
-codex --profile custom
+export AGENT_MODEL_API_KEY="your key for that endpoint"
+codex --profile custom      # Codex: only with --profile, otherwise unchanged
+qwen                        # Qwen Code: configured, no flag needed
 ```
 
-Set `CODEX_CUSTOM_API_KEY` *before* installing and the installer asks your endpoint which models
+One variable serves both. Qwen Code's own `/auth` writes the key into `settings.json` in plain
+text; this does not — the provider entry names the variable, and the file keeps only the URL and
+the model. Your `mcpServers` and everything else already in that file are merged, never replaced.
+
+Set `AGENT_MODEL_API_KEY` *before* installing and the installer asks your endpoint which models
 that key may actually use, then writes one of those. Which models an endpoint serves depends on the
 key, not on the endpoint — two keys on the same gateway can differ, and the same model can be
 listed under a bare and a prefixed name with only one of them permitted. Without that check the
