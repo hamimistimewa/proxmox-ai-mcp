@@ -6,7 +6,7 @@
 // It verifies the key against the platform first, writes the credentials to ~/.proxmox-ai/config.json with
 // owner-only permissions, and then registers this server with each client it actually finds. The client config
 // files only ever get a path — the key never goes into them, so dotfiles stay safe to commit and share.
-import { mkdirSync, readFileSync, writeFileSync, existsSync, cpSync, chmodSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync, cpSync, chmodSync, rmSync, symlinkSync } from 'node:fs';
 import { homedir, platform, hostname, userInfo } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { join, dirname, resolve } from 'node:path';
@@ -33,10 +33,12 @@ const APP_SUPPORT = platform() === 'darwin'
     : join(HOME, '.config');
 
 // Every client below stores MCP servers as JSON under some key; only the file and the key differ.
-// Claude Code is deliberately absent: there it installs as a plugin, which asks for the key itself and
-// keeps it in Claude Code's credential store. Registering it here would point that client at the key
-// this installer wrote, tying the two together for no gain — the plugin never reads this file.
+// Claude Code is here like any other client. It was left out for a while, on the reasoning that the
+// plugin is the better route there — but the plugin asks for its own key and reads nothing from
+// disk, so the two paths never touched. Leaving it out only meant a machine where every other agent
+// got its tools and Claude Code silently did not.
 const JSON_CLIENTS = [
+  { label: 'Claude Code', file: join(HOME, '.claude.json'), key: 'mcpServers', createIfMissing: true },
   { label: 'Claude Desktop', file: join(APP_SUPPORT, 'Claude', 'claude_desktop_config.json'), key: 'mcpServers' },
   { label: 'Cursor', file: join(HOME, '.cursor', 'mcp.json'), key: 'mcpServers' },
   { label: 'Windsurf', file: join(HOME, '.codeium', 'windsurf', 'mcp_config.json'), key: 'mcpServers' },
@@ -104,6 +106,29 @@ function registerToml({ label, file, alt }) {
 }
 
 // The skill is what teaches Claude the propose → confirm discipline; the tool list alone does not.
+// The shell client is useful whichever path installed things, and the README has always said it
+// lands on PATH. Only install.sh was linking it, so the Node path left `pmx: command not found`.
+function linkPmx() {
+  const src = resolve(HERE, 'pmx');
+  if (!existsSync(src)) return skip('pmx — not in this clone');
+  let dir = '';
+  for (const d of [join(HOME, '.local', 'bin'), join(HOME, 'bin'), '/usr/local/bin']) {
+    if ((process.env.PATH ?? '').split(':').includes(d)) {
+      try { mkdirSync(d, { recursive: true }); dir = d; break; } catch { /* not writable */ }
+    }
+  }
+  if (!dir) { dir = join(HOME, '.local', 'bin'); mkdirSync(dir, { recursive: true }); }
+  const dest = join(dir, 'pmx');
+  try {
+    rmSync(dest, { force: true });
+    symlinkSync(src, dest);
+    chmodSync(src, 0o755);
+    return ok(`pmx — linked (${dest})`);
+  } catch (err) {
+    return warn(`pmx — could not link: ${err.message}`);
+  }
+}
+
 function installSkills() {
   if (!existsSync(SKILL_SRC)) return warn('skill — skills/proxmox-operations is missing from this clone');
   for (const { label, dir, needs } of SKILL_DIRS) {
@@ -176,13 +201,14 @@ async function main() {
   console.log('\nRegistering with the AI clients on this machine:');
   for (const client of JSON_CLIENTS) registerJson(client);
   for (const client of TOML_CLIENTS) registerToml(client);
+  linkPmx();
   installSkills();
 
-  console.log('\nUsing Claude Code? Install it there as a plugin instead of with this installer:');
+  console.log('\nIn Claude Code there is also a plugin, if you prefer it to ask for the key itself');
+  console.log('and keep it out of any file:');
   console.log('  /plugin marketplace add hamimistimewa/proxmox-ai-mcp');
   console.log('  /plugin install proxmox-ai');
-  console.log('  It asks for the key itself and keeps it in Claude Code\'s credential store, so nothing');
-  console.log('  on disk is involved.');
+  console.log('Either way works. What this installer just set up needs nothing further.');
 
   console.log('\nRestart your AI client, then ask it something like:');
   console.log('  "node mana yang RAM-nya paling mepet?"');

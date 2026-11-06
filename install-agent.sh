@@ -145,9 +145,13 @@ fetch_node() {
 # Reading a choice needs care here, because `curl … | sh` has already given stdin to the script.
 # The prompt therefore reads /dev/tty, and where there is no terminal the choice must come from
 # --agent instead.
+# Only a binary on PATH counts, plus Claude Code's own ~/.claude.json. The directories this used to
+# look at — ~/.claude, ~/.codex, ~/.qwen — are ones this very script creates for the skill and the
+# MCP registration, so after one run every machine looked like it already had an agent and the
+# question was never asked again.
 agent_installed() {
   for c in claude codex qwen wwhale; do command -v "$c" >/dev/null 2>&1 && return 0; done
-  [ -d "$HOME/.claude" ] || [ -d "$HOME/.codex" ] || [ -d "$HOME/.qwen" ] || [ -d "$HOME/.weiping-whale" ]
+  [ -f "$HOME/.claude.json" ]
 }
 
 ask_agent() {
