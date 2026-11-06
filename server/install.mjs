@@ -134,15 +134,41 @@ function linkPmx() {
 // manifest hands on its URL and model — never the key, which belongs to whoever runs the agent. If
 // one is set and Codex is here, write it as a Codex *profile*: `--profile custom` reaches it, and
 // the config the user already had keeps working untouched when they do not ask for it.
-function writeCodexProfile(endpoint) {
-  if (!endpoint?.base_url || !endpoint?.model) return undefined;
+// Which models an endpoint serves depends on the key, not on the endpoint: a 403 saying "not
+// available for this API key" is the usual way to find that out, and it arrives only after someone
+// has typed a prompt. So when the key is to hand, ask the endpoint what this key may actually use
+// and write that into the profile. The key is read from the environment and never stored.
+async function resolveModel(baseUrl, preferred) {
+  const key = process.env.CODEX_CUSTOM_API_KEY;
+  if (!key) return { model: preferred, note: 'set CODEX_CUSTOM_API_KEY before running this to have the model checked against your key' };
+  let ids = [];
+  try {
+    const r = await fetch(`${String(baseUrl).replace(/\/+$/, '')}/models`, {
+      headers: { authorization: `Bearer ${key}`, accept: 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!r.ok) return { model: preferred, note: `the endpoint would not list models (HTTP ${r.status}), keeping ${preferred}` };
+    const body = await r.json();
+    ids = (body?.data ?? body?.models ?? []).map((m) => m?.id ?? m?.name).filter((x) => typeof x === 'string');
+  } catch (err) {
+    return { model: preferred, note: `could not reach the endpoint to list models (${err.message}), keeping ${preferred}` };
+  }
+  if (!ids.length) return { model: preferred, note: `the endpoint listed no models, keeping ${preferred}` };
+  if (preferred && ids.includes(preferred)) return { model: preferred, note: `your key may use ${preferred}` };
+  return { model: ids[0], note: `your key may not use ${preferred ?? 'that model'} — picked ${ids[0]} from the ${ids.length} it does offer` };
+}
+
+async function writeCodexProfile(endpoint) {
+  if (!endpoint?.base_url) return undefined;
   const dir = join(HOME, '.codex');
   if (!existsSync(dir)) return undefined;
   const file = join(dir, 'custom.config.toml');
+  const { model, note } = await resolveModel(endpoint.base_url, endpoint.model);
+  if (!model) return warn('Codex profile — no model to write; set one in AI settings');
   const toml = [
     '# Written by the Proxmox AI installer, from your organization\'s AI settings.',
     '# Reached with: codex --profile custom. Your base config.toml is untouched.',
-    `model = ${JSON.stringify(endpoint.model)}`,
+    `model = ${JSON.stringify(model)}`,
     'model_provider = "custom"',
     '',
     '[model_providers.custom]',
@@ -155,7 +181,9 @@ function writeCodexProfile(endpoint) {
   ].join('\n');
   try {
     writeFileSync(file, toml, { mode: 0o600 });
-    return ok(`Codex profile — written (${file})`);
+    ok(`Codex profile — written (${file}), model ${model}`);
+    if (note) skip(`  ${note}`);
+    return undefined;
   } catch (err) {
     return warn(`Codex profile — could not write: ${err.message}`);
   }
@@ -251,7 +279,7 @@ async function main() {
   for (const client of JSON_CLIENTS) registerJson(client);
   for (const client of TOML_CLIENTS) registerToml(client);
   linkPmx();
-  const profiled = writeCodexProfile(manifest.model_endpoint);
+  const profiled = manifest.model_endpoint ? await writeCodexProfile(manifest.model_endpoint) ?? true : undefined;
   installSkills();
 
   if (profiled) {

@@ -74,6 +74,16 @@ export CODEX_CUSTOM_API_KEY="your key for that endpoint"
 codex --profile custom
 ```
 
+Set `CODEX_CUSTOM_API_KEY` *before* installing and the installer asks your endpoint which models
+that key may actually use, then writes one of those. Which models an endpoint serves depends on the
+key, not on the endpoint — two keys on the same gateway can differ, and the same model can be
+listed under a bare and a prefixed name with only one of them permitted. Without that check the
+mismatch surfaces as `403 … not available for this API key`, after someone has already typed a
+prompt.
+
+Do not switch model with `/model` inside Codex afterwards: that list is Codex's, not your key's,
+and picking from it is how the 403 comes back.
+
 `codex doctor` tells you whether the wiring took, without spending a model call. What a working
 profile looks like:
 
