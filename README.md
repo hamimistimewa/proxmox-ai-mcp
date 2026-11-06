@@ -12,10 +12,11 @@ One command, on any machine, whichever agent you use. **Claude Code is not requi
 choice among several, and a machine with no agent at all is the case this is built for:
 
 ```sh
-curl -fsSL https://proxmox.ai.id/install-agent.sh | sh -s -- --key pak_xxxxxxxxxxxx_…
+curl -fsSL https://proxmox.ai.id/install-agent.sh | sh
 ```
 
-If the machine has no AI agent yet, it asks which one to install:
+That is the whole thing. It asks for your key rather than making you fit one on a command line,
+and if the machine has no AI agent yet it asks which to install:
 
 ```
 This machine has no AI agent yet. Which one should I install?
@@ -26,8 +27,11 @@ This machine has no AI agent yet. Which one should I install?
   4) none          — just set up the Proxmox tools
 ```
 
-Then it registers the MCP server with every agent on the machine and installs the skill. A machine
-that already has its agents skips the question entirely.
+Then it registers the MCP server with every agent on the machine, installs the skill, and offers to
+run the agent's sign-in there and then. Three answers — which agent, your key, your model account —
+and nothing is left to do. A machine that already has its agents skips the first question.
+
+Pass `--key pak_…` to skip being asked, which is what a script wants.
 
 Setting up several machines at once? `--agent codex` answers it ahead of time, and `--agent none`
 declines. The agent installs under `~/.proxmox-ai/agents` and is linked onto your `PATH`: nothing

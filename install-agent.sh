@@ -46,7 +46,8 @@ Gemini CLI, Cursor, Windsurf, Claude Desktop, VS Code. (Claude Code: use the plu
 
   curl -fsSL https://proxmox.ai.id/install-agent.sh | sh -s -- --key pak_...
 
-  --key   pak_...     your API key (Dashboard -> API keys -> New key)
+  --key   pak_...     your API key (Dashboard -> API keys -> New key). Left out, the
+                      script asks for it, so `curl ... | sh` on its own is enough.
   --url   https://... the platform, if you self-host (default: https://proxmox.ai.id)
   --agent <name>      install an AI agent first, when the machine has none: claude, codex,
                       qwen, or none. Left out, the script asks. Each agent signs in to its
@@ -80,7 +81,15 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[ -n "$KEY" ] || { printf 'mcp.sh: --key is required.\n' >&2; usage; exit 2; }
+# Asking beats a command line long enough to wrap, which is how a pasted key gets cut in half.
+if [ -z "$KEY" ] && [ -r /dev/tty ]; then
+  printf '\nPaste your Proxmox AI key (Dashboard -> API keys). It starts with pak_\n'
+  printf 'Key: '
+  read KEY < /dev/tty || KEY=""
+  KEY="$(printf '%s' "$KEY" | tr -d ' \t\r\n')"
+  printf '\n'
+fi
+[ -n "$KEY" ] || { printf 'mcp.sh: a key is required (--key pak_...).\n' >&2; usage; exit 2; }
 command -v curl >/dev/null 2>&1 || { echo 'mcp.sh: curl is required' >&2; exit 1; }
 
 # True when the given binary is a Node new enough for the server (package.json asks for >= 20).
@@ -161,20 +170,26 @@ ask_agent() {
 
 # Put a newly installed binary where the user's shell will find it, the same place `pmx` goes.
 # sh has no local variables, so every name here is prefixed to avoid clobbering the caller's.
+#
+# Where the link goes decides whether the user can type the command at all. A directory that is not
+# already on PATH means a binary that installs perfectly and then cannot be found — the warning this
+# used to print scrolled past in a wall of output and helped nobody. So prefer a directory PATH
+# already contains and this account can write: on a root shell that is usually /usr/local/bin.
 link_bin() {
   _lb_src="$1"; _lb_name="$2"
   [ -x "$_lb_src" ] || return 0
   _lb_dir=""
-  for d in "$HOME/.local/bin" "$HOME/bin"; do
-    case ":$PATH:" in *":$d:"*) _lb_dir="$d"; break ;; esac
+  for d in "$HOME/.local/bin" "$HOME/bin" /usr/local/bin; do
+    case ":$PATH:" in
+      *":$d:"*) if mkdir -p "$d" 2>/dev/null && [ -w "$d" ]; then _lb_dir="$d"; break; fi ;;
+    esac
   done
-  [ -n "$_lb_dir" ] || _lb_dir="$HOME/.local/bin"
-  mkdir -p "$_lb_dir"
+  if [ -z "$_lb_dir" ]; then
+    _lb_dir="$HOME/.local/bin"
+    mkdir -p "$_lb_dir"
+    PATH_HINT="$_lb_dir"
+  fi
   ln -sf "$_lb_src" "$_lb_dir/$_lb_name"
-  case ":$PATH:" in
-    *":$_lb_dir:"*) : ;;
-    *) printf '  !  %s is not on your PATH yet. Add it:\n       echo '"'"'export PATH="%s:$PATH"'"'"' >> ~/.profile\n' "$_lb_dir" "$_lb_dir" ;;
-  esac
 }
 
 install_agent() {
@@ -269,7 +284,7 @@ if [ "$CURL_ONLY" -eq 0 ]; then
   if [ -n "$NODE" ]; then
     # Nothing to register on a machine with no agent, so settle that first.
     if [ -z "$AGENT" ] && ! agent_installed; then ask_agent; fi
-    AGENT_BIN=""; AGENT_ACCT=""; AGENT_SIGNIN=""; AGENT_CHECK=""
+    AGENT_BIN=""; AGENT_ACCT=""; AGENT_SIGNIN=""; AGENT_CHECK=""; PATH_HINT=""
     [ -n "$AGENT" ] && [ "$AGENT" != "none" ] && install_agent
 
     "$NODE" "$DIR/server/install.mjs" --url "$URL" --key "$KEY" \
@@ -277,6 +292,12 @@ if [ "$CURL_ONLY" -eq 0 ]; then
 
     if [ -n "$AGENT_BIN" ]; then
       printf '\nFrom here, in order:\n\n'
+      if [ -n "${PATH_HINT:-}" ]; then
+        printf '  0.  export PATH="%s:$PATH"\n' "$PATH_HINT"
+        printf '      Required first, in this shell: %s was installed into that directory and\n' "$AGENT_BIN"
+        printf '      your PATH does not include it yet. To keep it, append the same line to\n'
+        printf '      ~/.bashrc. Without this the next step reports "command not found".\n\n'
+      fi
       printf '  1.  %s\n' "$AGENT_SIGNIN"
       printf '      Sign in to your own %s account. This is what pays for the model.\n\n' "$AGENT_ACCT"
       if [ -n "$AGENT_CHECK" ]; then
@@ -289,8 +310,22 @@ if [ "$CURL_ONLY" -eq 0 ]; then
         printf '      Starts it. Then ask, in your own words:\n'
       fi
       printf '        "node mana yang RAM-nya paling mepet?"\n\n'
-      printf '  If the shell cannot find %s, open a new one: it was linked into a directory\n' "$AGENT_BIN"
-      printf '  your current shell had already read.\n\n'
+      printf '  If the shell still cannot find %s, run step 0 again in the shell you are in.\n\n' "$AGENT_BIN"
+
+      # Offer to do step 1 right here. The sign-in is interactive and we already hold the terminal,
+      # so making the user leave and come back is a step that buys nothing.
+      if [ -r /dev/tty ] && command -v "$AGENT_BIN" >/dev/null 2>&1; then
+        printf 'Sign in now? [Y/n] '
+        read _yn < /dev/tty || _yn="n"
+        case "$_yn" in
+          ''|y|Y|yes|YES)
+            printf '\n'
+            # shellcheck disable=SC2086
+            $AGENT_SIGNIN < /dev/tty || printf '\n  sign-in did not finish — run: %s\n' "$AGENT_SIGNIN" ;;
+          *) printf '  Fine — run `%s` when you are ready.\n' "$AGENT_SIGNIN" ;;
+        esac
+        printf '\n'
+      fi
       printf '  The Proxmox key carries no model access, and your %s account grants no\n' "$AGENT_ACCT"
       printf '  infrastructure. Neither stands in for the other.\n\n'
     fi
