@@ -233,7 +233,7 @@ The bundled skill is what teaches the model that discipline — tool description
 | --- | --- |
 | `~/.proxmox-ai/config.json` | your platform URL and API key, mode `600` |
 | `~/.local/bin/pmx` | symlink to `server/pmx` (shell path) |
-| `~/.claude/skills/proxmox-operations/`, `~/.codex/skills/proxmox-operations/` | the skill |
+| `~/.claude/skills/proxmox-operations/`, `~/.codex/skills/proxmox-operations/` | the shell skill, copied from `cli-skill/SKILL.md` |
 | `~/Library/Application Support/Claude/claude_desktop_config.json` | Claude Desktop (`~/.config/Claude/` on Linux, `%APPDATA%` on Windows) |
 | `~/.codex/config.toml` | Codex CLI, as `[mcp_servers.proxmox_ai]` |
 | `~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`, `~/.gemini/settings.json` | Cursor, Windsurf, Gemini CLI |
@@ -243,6 +243,15 @@ commit. Clients that are not installed are skipped; existing entries are merged,
 
 Claude Code is not in that list on purpose: there this installs as a plugin, which asks for the key
 itself. See **Credentials & privacy** below.
+
+## Two skills, two ways in
+
+The plugin ships exactly one skill, `skills/proxmox-operations/`, which drives the MCP tools.
+
+`cli-skill/SKILL.md` is not a plugin skill and is deliberately outside `skills/` so Claude Code
+never loads it. It is the template `install.sh` copies onto a machine that has no MCP server, where
+the `pmx` shell command is the way in. Shipping it as a plugin skill would tell a model to run `pmx`,
+which a plugin install does not put on the PATH.
 
 ## Credentials & privacy
 
