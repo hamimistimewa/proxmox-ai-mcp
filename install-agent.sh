@@ -197,7 +197,12 @@ install_agent() {
     claude) _pkg="@anthropic-ai/claude-code"; _bin="claude"; _cfg="$HOME/.claude"
             _acct="Anthropic"; _signin="claude"; _check="claude mcp list" ;;
     codex)  _pkg="@openai/codex";             _bin="codex";  _cfg="$HOME/.codex"
-            _acct="OpenAI";    _signin="codex login"; _check="codex mcp list" ;;
+            _acct="OpenAI";    _check="codex mcp list"
+            # A server has no browser, and the default sign-in opens one and waits on a callback to
+            # localhost that nobody can reach. Codex's device flow prints a short code to type on a
+            # machine that does have a browser, which is the only form that works over ssh.
+            if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then _signin="codex login"
+            else _signin="codex login --device-auth"; fi ;;
     qwen)   _pkg="@qwen-code/qwen-code";      _bin="qwen";   _cfg="$HOME/.qwen"
             _acct="Qwen";      _signin="qwen"; _check="" ;;
     *) return 0 ;;
@@ -299,7 +304,12 @@ if [ "$CURL_ONLY" -eq 0 ]; then
         printf '      ~/.bashrc. Without this the next step reports "command not found".\n\n'
       fi
       printf '  1.  %s\n' "$AGENT_SIGNIN"
-      printf '      Sign in to your own %s account. This is what pays for the model.\n\n' "$AGENT_ACCT"
+      printf '      Sign in to your own %s account. This is what pays for the model.\n' "$AGENT_ACCT"
+      case "$AGENT_SIGNIN" in
+        *--device-auth) printf '      It prints a short code to type into a browser on your own computer,\n'
+                        printf '      because this machine has none.\n' ;;
+      esac
+      printf '\n'
       if [ -n "$AGENT_CHECK" ]; then
         printf '  2.  %s\n' "$AGENT_CHECK"
         printf '      Should list proxmox_ai. If it does, the tools arrived.\n\n'
