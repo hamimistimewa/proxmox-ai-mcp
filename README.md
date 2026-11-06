@@ -272,21 +272,8 @@ The bundled skill is what teaches the model that discipline — tool description
 **The key is never written into a client's config** — those only get a path. Your dotfiles stay safe to
 commit. Clients that are not installed are skipped; existing entries are merged, never overwritten.
 
-Claude Code is in that list like any other client. It was left out for a while, on the reasoning
-that the plugin is the better route there — but the plugin asks for its own key and reads nothing
-from disk, so the two never touched, and leaving it out only meant a machine where every other agent
-got its tools and Claude Code got the skill with nothing to call. The plugin remains the better
-route when you would rather no file held the key at all; see **Credentials & privacy** below.
-
-## Installing the agent as well
-
-Covered in [Quick start](#quick-start): the one-liner asks which agent to install when the machine
-has none, and `--agent claude|codex|qwen|none` answers ahead of time.
-
-Three agents install this way, each verified against its published package: Claude Code
-(`@anthropic-ai/claude-code`), Codex CLI (`@openai/codex`) and Qwen Code (`@qwen-code/qwen-code`).
-DeepSeek CLI is set up when it is already on the machine, but it is not offered for installation:
-its package is not published to npm and has to be built from source.
+Claude Code is in that list like any other client. The plugin is the other route there, for when
+you would rather no file held the key at all; see **Credentials & privacy** below.
 
 ## Two skills, two ways in
 
@@ -333,8 +320,11 @@ Either way:
 
 ## Getting a key
 
-Dashboard → **Organization → API keys**. Pick the lowest role that does the job, list the IP addresses it
-will be used from (required), and set an expiry. The key is shown once.
+Dashboard → **Organization → API keys**. Pick the lowest role that does the job and set an expiry.
+Then choose where it may be used from: a list of IP addresses, for a server that has a fixed one; or
+**pinned to machines**, for a laptop or anything whose address moves. A pinned key needs no
+addresses — set *Machines to approve now* to how many machines should start using it without
+asking you, and the machine after those waits for your approval. The key is shown once.
 
 Start with `readonly`. Move to `operator` when you want the agent to draft changes for you — it still
 cannot execute them.
@@ -347,7 +337,7 @@ cannot execute them.
 | `This needs the Operator role or higher` | the key's role is too low — issue a new key, do not retry |
 | `did not return a tool manifest` | the URL does not point at a Proxmox AI platform |
 | `pmx: no configuration` | re-run the installer, or set `PROXMOX_AI_URL` and `PROXMOX_AI_KEY` |
-| `install-agent.sh: --key is required` | the one-liner needs `sh -s --` before the flags, or they reach `sh` instead of the script |
+| `a key is required` | no terminal to ask on, so pass `--key pak_…`; with `curl … \| sh -s -- --key …` the `-s --` is what stops the flags reaching `sh` |
 | `Send the API key as "Authorization: Bearer …"` | HTTP transport with no key on the request and none configured |
 | no tools in the client | restart it; MCP config is read at start-up |
 
