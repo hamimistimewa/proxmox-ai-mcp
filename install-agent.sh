@@ -179,9 +179,12 @@ link_bin() {
 
 install_agent() {
   case "$AGENT" in
-    claude) _pkg="@anthropic-ai/claude-code"; _bin="claude"; _cfg="$HOME/.claude"; _login="run: claude   (it opens an Anthropic sign-in)" ;;
-    codex)  _pkg="@openai/codex";             _bin="codex";  _cfg="$HOME/.codex";  _login="run: codex   (it opens an OpenAI sign-in)" ;;
-    qwen)   _pkg="@qwen-code/qwen-code";      _bin="qwen";   _cfg="$HOME/.qwen";   _login="run: qwen    (it asks for your provider)" ;;
+    claude) _pkg="@anthropic-ai/claude-code"; _bin="claude"; _cfg="$HOME/.claude"
+            _acct="Anthropic"; _signin="claude"; _check="claude mcp list" ;;
+    codex)  _pkg="@openai/codex";             _bin="codex";  _cfg="$HOME/.codex"
+            _acct="OpenAI";    _signin="codex login"; _check="codex mcp list" ;;
+    qwen)   _pkg="@qwen-code/qwen-code";      _bin="qwen";   _cfg="$HOME/.qwen"
+            _acct="Qwen";      _signin="qwen"; _check="" ;;
     *) return 0 ;;
   esac
   # A freshly installed agent has a binary but no config directory until its first run, and the
@@ -190,7 +193,7 @@ install_agent() {
   mkdir -p "$_cfg"
   if command -v "$_bin" >/dev/null 2>&1; then
     printf '  v  %s is already installed\n' "$_bin"
-    AGENT_HINT="$_login"
+    AGENT_BIN="$_bin"; AGENT_ACCT="$_acct"; AGENT_SIGNIN="$_signin"; AGENT_CHECK="$_check"
     return 0
   fi
   _npm="$(dirname "$NODE")/npm"
@@ -201,14 +204,27 @@ install_agent() {
   # outside the one directory this script owns.
   _prefix="$HOME/.proxmox-ai/agents"
   mkdir -p "$_prefix"
+  # npm spawns child scripts whose shebang is `#!/usr/bin/env node`, and the agent's own binary has
+  # the same one. When Node came from this script rather than the system, it is only reachable by
+  # absolute path, so those children die with `env: 'node': No such file or directory`. Put the Node
+  # we are using on PATH for the install, and link it beside the agent so the agent still runs after.
+  _nodedir="$(dirname "$NODE")"
+  case ":$PATH:" in *":$_nodedir:"*) : ;; *) PATH="$_nodedir:$PATH"; export PATH ;; esac
   printf '  .  installing %s (into ~/.proxmox-ai/agents) …\n' "$_pkg"
   # Keep npm's own diagnosis. Swallowing it leaves a failure nobody can act on: the reason is
   # almost always in the last few lines npm prints, and it is different on every machine.
   _log="$HOME/.proxmox-ai/agent-install.log"
   if "$_npm" install -g --prefix "$_prefix" "$_pkg" >"$_log" 2>&1; then
     link_bin "$_prefix/bin/$_bin" "$_bin"
-    printf '  v  %s installed — %s\n' "$_bin" "$_login"
-    AGENT_HINT="$_login"
+    # The agent is a Node script whose shebang is `#!/usr/bin/env node`, so node has to be findable
+    # by name or it fails the moment it is typed, having installed perfectly well. Testing PATH here
+    # is no good: this function just put our own node on PATH for the install. What decides it is
+    # whose node this is — ours, under ~/.proxmox-ai, has to be linked for the user's own shell.
+    case "$_nodedir" in
+      "$HOME/.proxmox-ai"/*) link_bin "$_nodedir/node" "node" ;;
+    esac
+    printf '  v  %s installed\n' "$_bin"
+    AGENT_BIN="$_bin"; AGENT_ACCT="$_acct"; AGENT_SIGNIN="$_signin"; AGENT_CHECK="$_check"
   else
     printf '  x  could not install %s. npm said:\n' "$_pkg" >&2
     # Print the tail unconditionally. Filtering for error-looking lines first left nothing on
@@ -253,16 +269,30 @@ if [ "$CURL_ONLY" -eq 0 ]; then
   if [ -n "$NODE" ]; then
     # Nothing to register on a machine with no agent, so settle that first.
     if [ -z "$AGENT" ] && ! agent_installed; then ask_agent; fi
-    AGENT_HINT=""
+    AGENT_BIN=""; AGENT_ACCT=""; AGENT_SIGNIN=""; AGENT_CHECK=""
     [ -n "$AGENT" ] && [ "$AGENT" != "none" ] && install_agent
 
     "$NODE" "$DIR/server/install.mjs" --url "$URL" --key "$KEY" \
       ${DEVICE:+--device "$DEVICE"} ${DEVNAME:+--device-name "$DEVNAME"} || exit $?
 
-    if [ -n "$AGENT_HINT" ]; then
-      printf 'One step left — sign the agent in to your own model account:\n  %s\n\n' "$AGENT_HINT"
-      printf 'That account pays for the model. The Proxmox key you just installed pays for nothing\n'
-      printf 'and carries no model access: it only decides which infrastructure tools the agent sees.\n\n'
+    if [ -n "$AGENT_BIN" ]; then
+      printf '\nFrom here, in order:\n\n'
+      printf '  1.  %s\n' "$AGENT_SIGNIN"
+      printf '      Sign in to your own %s account. This is what pays for the model.\n\n' "$AGENT_ACCT"
+      if [ -n "$AGENT_CHECK" ]; then
+        printf '  2.  %s\n' "$AGENT_CHECK"
+        printf '      Should list proxmox_ai. If it does, the tools arrived.\n\n'
+        printf '  3.  %s\n' "$AGENT_BIN"
+        printf '      Starts it. Then ask, in your own words:\n'
+      else
+        printf '  2.  %s\n' "$AGENT_BIN"
+        printf '      Starts it. Then ask, in your own words:\n'
+      fi
+      printf '        "node mana yang RAM-nya paling mepet?"\n\n'
+      printf '  If the shell cannot find %s, open a new one: it was linked into a directory\n' "$AGENT_BIN"
+      printf '  your current shell had already read.\n\n'
+      printf '  The Proxmox key carries no model access, and your %s account grants no\n' "$AGENT_ACCT"
+      printf '  infrastructure. Neither stands in for the other.\n\n'
     fi
     exit 0
   fi
