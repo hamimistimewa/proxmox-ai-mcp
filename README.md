@@ -1,48 +1,70 @@
 # proxmox-ai-mcp
 
-Give your AI client — **Claude Code, Codex, Claude Desktop, Cursor** — real tools for your Proxmox VE
-infrastructure, through the [Proxmox AI](https://proxmox.ai.id) platform.
+Give your AI client — **Codex CLI, Qwen Code, Claude Code, DeepSeek CLI, Cursor, Claude Desktop,
+Windsurf, Gemini CLI, VS Code** — real tools for your Proxmox VE infrastructure, through the
+[Proxmox AI](https://proxmox.ai.id) platform.
 
 > What is the platform? → **[PLATFORM.md](PLATFORM.md)**
 
 ## Quick start
 
-### In Claude Code
-
-Install it as a plugin and let Claude Code ask for your key — nothing is downloaded by a shell:
-
-```
-/plugin install proxmox-ai --marketplace hamimistimewa/proxmox-ai-mcp
-```
-
-### Anywhere else
-
-Download the installer, read it, then run it:
+One command, on any machine, whichever agent you use. **Claude Code is not required** — it is one
+choice among several, and a machine with no agent at all is the case this is built for:
 
 ```sh
-curl -fsSL -o proxmox-ai-install.sh https://proxmox.ai.id/mcp.sh
-less proxmox-ai-install.sh          # it is ~120 lines of POSIX shell
-sh proxmox-ai-install.sh --key pak_xxxxxxxxxxxx_…
+curl -fsSL https://proxmox.ai.id/install-agent.sh | sh -s -- --key pak_xxxxxxxxxxxx_…
 ```
 
-A one-line form exists at [proxmox.ai.id/mcp](https://proxmox.ai.id/mcp) for anyone who wants it.
-It pipes the same script straight into a shell, which runs code nobody has read, so the two steps
-above are the documented path.
+If the machine has no AI agent yet, it asks which one to install:
+
+```
+This machine has no AI agent yet. Which one should I install?
+
+  1) Claude Code   — Anthropic account
+  2) Codex CLI     — OpenAI account
+  3) Qwen Code     — Qwen or any OpenAI-compatible account
+  4) none          — just set up the Proxmox tools
+```
+
+Then it registers the MCP server with every agent on the machine and installs the skill. A machine
+that already has its agents skips the question entirely.
+
+Setting up several machines at once? `--agent codex` answers it ahead of time, and `--agent none`
+declines. The agent installs under `~/.proxmox-ai/agents` and is linked onto your `PATH`: nothing
+outside `~/.proxmox-ai` is touched and no package manager runs as root.
+
+**Each agent signs in to its own model account.** This installer supplies infrastructure tools and
+never model credentials. Your Proxmox key decides which tools the agent sees; your Anthropic,
+OpenAI or Qwen account pays for the model. Neither stands in for the other.
+
+### Rather read it first
+
+Fair. It is the file in this repo, so read it here or download it:
+
+```sh
+curl -fsSL -o install-agent.sh https://proxmox.ai.id/install-agent.sh
+less install-agent.sh               # ~260 lines of POSIX shell, same file as this repo's
+sh install-agent.sh --key pak_xxxxxxxxxxxx_…
+```
 
 It fetches this repo into `~/.proxmox-ai/src`, checks the key against the platform before writing
-anything, and then sets up whichever path your machine can run: with Node it registers a real MCP
-server with every AI client it finds; without Node it installs the `pmx` command instead. Add
-`--url` if you self-host, and `--curl-only` to skip the MCP server.
+anything, supplies Node when the machine has none, and then sets up whichever path the machine can
+run: with Node a real MCP server, without Node the `pmx` shell command instead. Add `--url` if you
+self-host, `--curl-only` to skip the MCP server, and `--device` for a key pinned to machines.
 
 ![Install, check the connection, ask a question, propose a VM, confirm it](docs/setup.gif)
 
-### In Claude Code
+### Already using Claude Code?
 
-This repo is also a Claude Code plugin, which adds the `/pmx-ai` command on top of the MCP server:
+Then install it there as a plugin instead of running the script: Claude Code asks for the key itself,
+adds the `/pmx-ai` command on top of the MCP server, and nothing is downloaded by a shell.
 
 ```
-/plugin install proxmox-ai --marketplace hamimistimewa/proxmox-ai-mcp
+/plugin marketplace add hamimistimewa/proxmox-ai-mcp
+/plugin install proxmox-ai
 ```
+
+This is an alternative to the one-liner above, not a prerequisite for it.
 
 Claude Code asks for your API key when you enable it and keeps it in the platform's secure
 credential store — the key is never written into a config file, and the plugin never reads a
@@ -246,33 +268,15 @@ commit. Clients that are not installed are skipped; existing entries are merged,
 Claude Code is not in that list on purpose: there this installs as a plugin, which asks for the key
 itself. See **Credentials & privacy** below.
 
-## No agent on the machine yet?
+## Installing the agent as well
 
-The one-liner asks, and installs the one you pick:
+Covered in [Quick start](#quick-start): the one-liner asks which agent to install when the machine
+has none, and `--agent claude|codex|qwen|none` answers ahead of time.
 
-```sh
-curl -fsSL https://proxmox.ai.id/install-agent.sh | sh -s -- --key pak_xxxxxxxxxxxx_…
-```
-
-```
-This machine has no AI agent yet. Which one should I install?
-
-  1) Claude Code   — Anthropic account
-  2) Codex CLI     — OpenAI account
-  3) Qwen Code     — Qwen or any OpenAI-compatible account
-  4) none          — just set up the Proxmox tools
-```
-
-Pass `--agent claude|codex|qwen|none` to skip the question, which is what you want when you are
-setting up several machines at once. The agent lands in `~/.proxmox-ai/agents` and is linked onto
-your `PATH`; nothing outside `~/.proxmox-ai` is touched and no package manager runs as root.
-
-**Each agent signs in to its own model account.** This installer never supplies model credentials:
-the Proxmox key decides which infrastructure tools the agent sees, and your Anthropic, OpenAI or
-Qwen account pays for the model. The two are separate, and neither can stand in for the other.
-
-A machine that already has an agent skips all of this. `install-agent.sh` at the repo root is the
-same script the site serves, so you can read it before piping it into a shell.
+Three agents install this way, each verified against its published package: Claude Code
+(`@anthropic-ai/claude-code`), Codex CLI (`@openai/codex`) and Qwen Code (`@qwen-code/qwen-code`).
+DeepSeek CLI is set up when it is already on the machine, but it is not offered for installation:
+its package is not published to npm and has to be built from source.
 
 ## Two skills, two ways in
 
@@ -332,7 +336,7 @@ cannot execute them.
 | `This needs the Operator role or higher` | the key's role is too low — issue a new key, do not retry |
 | `did not return a tool manifest` | the URL does not point at a Proxmox AI platform |
 | `pmx: no configuration` | re-run the installer, or set `PROXMOX_AI_URL` and `PROXMOX_AI_KEY` |
-| `mcp.sh: --key is required` | the one-liner needs `sh -s --` before the flags, or they reach `sh` instead of the script |
+| `install-agent.sh: --key is required` | the one-liner needs `sh -s --` before the flags, or they reach `sh` instead of the script |
 | `Send the API key as "Authorization: Bearer …"` | HTTP transport with no key on the request and none configured |
 | no tools in the client | restart it; MCP config is read at start-up |
 
