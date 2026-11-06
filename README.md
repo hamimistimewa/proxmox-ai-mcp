@@ -27,8 +27,9 @@ This machine has no AI agent yet. Which one should I install?
   4) none          — just set up the Proxmox tools
 ```
 
-Then it registers the MCP server with every agent on the machine, installs the skill, and offers to
-run the agent's sign-in there and then. Three answers — which agent, your key, your model account —
+Then it registers the MCP server with every agent on the machine — Claude Code included — links the
+`pmx` shell client onto your `PATH`, installs the skill, and offers to run the agent's sign-in there
+and then. Three answers — which agent, your key, your model account —
 and nothing is left to do. A machine that already has its agents skips the first question.
 
 Pass `--key pak_…` to skip being asked, which is what a script wants.
@@ -58,10 +59,11 @@ self-host, `--curl-only` to skip the MCP server, and `--device` for a key pinned
 
 ![Install, check the connection, ask a question, propose a VM, confirm it](docs/setup.gif)
 
-### Already using Claude Code?
+### In Claude Code there is also a plugin
 
-Then install it there as a plugin instead of running the script: Claude Code asks for the key itself,
-adds the `/pmx-ai` command on top of the MCP server, and nothing is downloaded by a shell.
+The one-liner above already sets Claude Code up. The plugin is the other route: it asks for the key
+itself, keeps it out of every file, adds the `/pmx-ai` command on top of the MCP server, and nothing
+is downloaded by a shell.
 
 ```
 /plugin marketplace add hamimistimewa/proxmox-ai-mcp
@@ -258,7 +260,7 @@ The bundled skill is what teaches the model that discipline — tool description
 | File | Contents |
 | --- | --- |
 | `~/.proxmox-ai/config.json` | your platform URL, API key and this machine's id, mode `600` |
-| `~/.local/bin/pmx` | symlink to `server/pmx` (shell path) |
+| `~/.local/bin/pmx` | symlink to `server/pmx`, on both paths — or `/usr/local/bin` when that is the one already on your `PATH` |
 | `~/.claude/skills/proxmox-operations/`, `~/.codex/skills/proxmox-operations/` | the shell skill, copied from `cli-skill/SKILL.md` |
 | `~/Library/Application Support/Claude/claude_desktop_config.json` | Claude Desktop (`~/.config/Claude/` on Linux, `%APPDATA%` on Windows) |
 | `~/.codex/config.toml` | Codex CLI, as `[mcp_servers.proxmox_ai]` |
@@ -269,8 +271,11 @@ The bundled skill is what teaches the model that discipline — tool description
 **The key is never written into a client's config** — those only get a path. Your dotfiles stay safe to
 commit. Clients that are not installed are skipped; existing entries are merged, never overwritten.
 
-Claude Code is not in that list on purpose: there this installs as a plugin, which asks for the key
-itself. See **Credentials & privacy** below.
+Claude Code is in that list like any other client. It was left out for a while, on the reasoning
+that the plugin is the better route there — but the plugin asks for its own key and reads nothing
+from disk, so the two never touched, and leaving it out only meant a machine where every other agent
+got its tools and Claude Code got the skill with nothing to call. The plugin remains the better
+route when you would rather no file held the key at all; see **Credentials & privacy** below.
 
 ## Installing the agent as well
 
