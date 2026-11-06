@@ -211,8 +211,14 @@ install_agent() {
     AGENT_HINT="$_login"
   else
     printf '  x  could not install %s. npm said:\n' "$_pkg" >&2
-    sed -n 's/^/       /p' "$_log" 2>/dev/null | grep -iE 'err|warn|unsupported|EBADPLATFORM|ENOENT|EACCES|network' | tail -6 >&2 \
-      || tail -6 "$_log" 2>/dev/null | sed 's/^/       /' >&2
+    # Print the tail unconditionally. Filtering for error-looking lines first left nothing on
+    # screen when none matched, because `tail` succeeds on empty input and the fallback never ran.
+    if [ -s "$_log" ]; then
+      tail -14 "$_log" | sed 's/^/       /' >&2
+    else
+      printf '       (npm wrote nothing — it may not have run at all)\n' >&2
+      printf '       npm used: %s\n' "$_npm" >&2
+    fi
     printf '     full log: %s\n' "$_log" >&2
     printf '     The Proxmox tools are still set up below. Install the agent yourself and run this\n' >&2
     printf '     again, or pick another with --agent claude|qwen.\n' >&2
