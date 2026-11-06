@@ -74,6 +74,18 @@ export CODEX_CUSTOM_API_KEY="your key for that endpoint"
 codex --profile custom
 ```
 
+`codex doctor` tells you whether the wiring took, without spending a model call. What a working
+profile looks like:
+
+```
+✓ config    loaded
+    default model provider    custom
+    config.toml parse         ok
+✓ auth      auth is provided by the active model provider
+    model provider requires OpenAI auth   false
+    provider auth env var     CODEX_CUSTOM_API_KEY (present)
+```
+
 Without `--profile`, Codex keeps using whatever account it already signed in to. The Proxmox tools
 are in both, because they live in the base config.
 
