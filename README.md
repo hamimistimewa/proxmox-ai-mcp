@@ -246,6 +246,34 @@ commit. Clients that are not installed are skipped; existing entries are merged,
 Claude Code is not in that list on purpose: there this installs as a plugin, which asks for the key
 itself. See **Credentials & privacy** below.
 
+## No agent on the machine yet?
+
+The one-liner asks, and installs the one you pick:
+
+```sh
+curl -fsSL https://proxmox.ai.id/install-agent.sh | sh -s -- --key pak_xxxxxxxxxxxx_…
+```
+
+```
+This machine has no AI agent yet. Which one should I install?
+
+  1) Claude Code   — Anthropic account
+  2) Codex CLI     — OpenAI account
+  3) Qwen Code     — Qwen or any OpenAI-compatible account
+  4) none          — just set up the Proxmox tools
+```
+
+Pass `--agent claude|codex|qwen|none` to skip the question, which is what you want when you are
+setting up several machines at once. The agent lands in `~/.proxmox-ai/agents` and is linked onto
+your `PATH`; nothing outside `~/.proxmox-ai` is touched and no package manager runs as root.
+
+**Each agent signs in to its own model account.** This installer never supplies model credentials:
+the Proxmox key decides which infrastructure tools the agent sees, and your Anthropic, OpenAI or
+Qwen account pays for the model. The two are separate, and neither can stand in for the other.
+
+A machine that already has an agent skips all of this. `install-agent.sh` at the repo root is the
+same script the site serves, so you can read it before piping it into a shell.
+
 ## Two skills, two ways in
 
 The plugin ships exactly one skill, `skills/proxmox-operations/`, which drives the MCP tools.
