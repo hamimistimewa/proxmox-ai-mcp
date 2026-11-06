@@ -202,12 +202,20 @@ install_agent() {
   _prefix="$HOME/.proxmox-ai/agents"
   mkdir -p "$_prefix"
   printf '  .  installing %s (into ~/.proxmox-ai/agents) …\n' "$_pkg"
-  if "$_npm" install -g --prefix "$_prefix" --silent "$_pkg" >/dev/null 2>&1; then
+  # Keep npm's own diagnosis. Swallowing it leaves a failure nobody can act on: the reason is
+  # almost always in the last few lines npm prints, and it is different on every machine.
+  _log="$HOME/.proxmox-ai/agent-install.log"
+  if "$_npm" install -g --prefix "$_prefix" "$_pkg" >"$_log" 2>&1; then
     link_bin "$_prefix/bin/$_bin" "$_bin"
     printf '  v  %s installed — %s\n' "$_bin" "$_login"
     AGENT_HINT="$_login"
   else
-    printf '  x  could not install %s — install it yourself, then run this again\n' "$_pkg" >&2
+    printf '  x  could not install %s. npm said:\n' "$_pkg" >&2
+    sed -n 's/^/       /p' "$_log" 2>/dev/null | grep -iE 'err|warn|unsupported|EBADPLATFORM|ENOENT|EACCES|network' | tail -6 >&2 \
+      || tail -6 "$_log" 2>/dev/null | sed 's/^/       /' >&2
+    printf '     full log: %s\n' "$_log" >&2
+    printf '     The Proxmox tools are still set up below. Install the agent yourself and run this\n' >&2
+    printf '     again, or pick another with --agent claude|qwen.\n' >&2
   fi
 }
 
