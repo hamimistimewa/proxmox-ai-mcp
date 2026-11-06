@@ -270,6 +270,12 @@ shell command. These clients have no such prompt, so `install.sh` stores the key
 `~/.proxmox-ai/config.json` with mode `600` after verifying it. That file is the only place this project
 ever writes a credential, and the MCP plugin never reads it.
 
+**A key pinned to machines** works on both paths. The identifier that says which machine this is
+carries no secret and grants nothing on its own — an unrecognised one appears in the dashboard as a
+machine awaiting your approval. The CLI keeps it in `~/.proxmox-ai/config.json` beside the key; the
+plugin keeps it in its own `${CLAUDE_PLUGIN_DATA}` directory, so plugin mode still reads nothing of
+yours. Pin a key to machines instead of IP addresses when you work from changing networks.
+
 Either way:
 
 - The key travels to one host only: the platform URL you configured, `https://proxmox.ai.id` unless you
